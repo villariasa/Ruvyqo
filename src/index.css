@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Glassmorphism + Dark Mode */
 @layer base {
   :root {
     --bg: 255 255 255;
@@ -17,14 +16,16 @@
     --border: rgba(255, 255, 255, 0.1);
   }
 }
+
 body {
-  background: rgb(var(--bg));
-  color: rgb(var(--text));
-  transition: all 0.4s ease;
+  @apply bg-[rgb(var(--bg))] text-[rgb(var(--text))] transition-all duration-500;
   font-family: 'Inter', sans-serif;
 }
 
-/* Floating blobs */
+.glass {
+  @apply backdrop-blur-xl bg-[var(--glass)] border border-[var(--border)] rounded-3xl shadow-2xl;
+}
+
 .bg-blob {
   position: fixed;
   width: 600px;
