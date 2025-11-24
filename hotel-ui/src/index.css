@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Glassmorphism + Dark Mode */
+@layer base {
+  :root {
+    --bg: 255 255 255;
+    --text: 15 23 42;
+    --glass: rgba(255, 255, 255, 0.15);
+    --border: rgba(255, 255, 255, 0.2);
+  }
+  [data-theme="dark"] {
+    --bg: 15 23 42;
+    --text: 241 245 249;
+    --glass: rgba(15, 23, 42, 0.4);
+    --border: rgba(255, 255, 255, 0.1);
+  }
+}
+body {
+  background: rgb(var(--bg));
+  color: rgb(var(--text));
+  transition: all 0.4s ease;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Floating blobs */
+.bg-blob {
+  position: fixed;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.15;
+  z-index: -1;
+  animation: float 20s infinite ease-in-out;
+}
+.bg-blob:nth-child(1) { background: #8b5cf6; top: -10%; left: -10%; }
+.bg-blob:nth-child(2) { background: #3b82f6; bottom: -10%; right: -10%; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-100px) rotate(10deg); }
+}
