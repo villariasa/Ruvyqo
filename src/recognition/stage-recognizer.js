@@ -88,3 +88,41 @@ export function getRouxStage(cubeState) {
   }
   return 'FB';
 }
+
+export function getFBPieceProgress(cubeState) {
+  const pieces = {
+    'DL edge': 9,
+    'BL edge': 3,
+    'DBL corner': 0,
+    'FL edge': 21,
+    'DFL corner': 18,
+    'L center': 12
+  };
+  const progress = {};
+  let solvedCount = 0;
+  for (const [name, id] of Object.entries(pieces)) {
+    const solved = isPieceSolved(cubeState, id);
+    progress[name] = solved;
+    if (solved) solvedCount++;
+  }
+  return { progress, solvedCount, totalCount: 6 };
+}
+
+export function getSBPieceProgress(cubeState) {
+  const pieces = {
+    'DR edge': 11,
+    'BR edge': 5,
+    'DBR corner': 2,
+    'FR edge': 23,
+    'DFR corner': 20,
+    'R center': 14
+  };
+  const progress = {};
+  let solvedCount = 0;
+  for (const [name, id] of Object.entries(pieces)) {
+    const solved = isPieceSolved(cubeState, id);
+    progress[name] = solved;
+    if (solved) solvedCount++;
+  }
+  return { progress, solvedCount, totalCount: 6 };
+}

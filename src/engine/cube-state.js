@@ -135,4 +135,116 @@ export class CubeState {
       c.colors.r = charToColor[str[offset + 8]];
     }
   }
+
+  // Constructs state from a 54-sticker map and validates parities
+  setStickersState(stickerColors) {
+    // 1. Validate color counts
+    const counts = {};
+    Object.values(stickerColors).flat().forEach(c => counts[c] = (counts[c] || 0) + 1);
+    const validColors = ['yellow', 'white', 'green', 'blue', 'orange', 'red'];
+    for (const c of validColors) {
+      if ((counts[c] || 0) !== 9) {
+        throw new Error(`Invalid color count: Exactly 9 of each color required. Found ${counts[c] || 0} for ${c}.`);
+      }
+    }
+
+    // 2. Set colors on cubies based on coordinates
+    for (const cubie of this.cubies) {
+      const { x, y, z } = cubie;
+      cubie.colors.u = null;
+      cubie.colors.d = null;
+      cubie.colors.f = null;
+      cubie.colors.b = null;
+      cubie.colors.l = null;
+      cubie.colors.r = null;
+
+      if (y === 1) {
+        const row = z + 1;
+        const col = x + 1;
+        cubie.colors.u = stickerColors.u[row * 3 + col];
+      }
+      if (y === -1) {
+        const row = 1 - z;
+        const col = x + 1;
+        cubie.colors.d = stickerColors.d[row * 3 + col];
+      }
+      if (z === 1) {
+        const row = 1 - y;
+        const col = x + 1;
+        cubie.colors.f = stickerColors.f[row * 3 + col];
+      }
+      if (z === -1) {
+        const row = 1 - y;
+        const col = 1 - x;
+        cubie.colors.b = stickerColors.b[row * 3 + col];
+      }
+      if (x === -1) {
+        const row = 1 - y;
+        const col = z + 1;
+        cubie.colors.l = stickerColors.l[row * 3 + col];
+      }
+      if (x === 1) {
+        const row = 1 - y;
+        const col = 1 - z;
+        cubie.colors.r = stickerColors.r[row * 3 + col];
+      }
+    }
+
+    // 3. Validate parities
+    this.validateParities();
+  }
+
+  validateParities() {
+    // Corner orientation twist sum must be modulo 3 = 0
+    let cornerTwistSum = 0;
+    // Edge flip sum must be even
+    let edgeFlipSum = 0;
+
+    for (const cubie of this.cubies) {
+      const stickersCount = Object.values(cubie.colors).filter(Boolean).length;
+      
+      // Corner check
+      if (stickersCount === 3) {
+        const colors = cubie.colors;
+        const hasUDOnUD = (colors.u === 'yellow' || colors.u === 'white' || colors.d === 'yellow' || colors.d === 'white');
+        if (!hasUDOnUD) {
+          const udFace = Object.keys(colors).find(f => (f === 'l' || f === 'r' || f === 'f' || f === 'b') && (colors[f] === 'yellow' || colors[f] === 'white'));
+          if (udFace) {
+            const isOnLR = (udFace === 'l' || udFace === 'r');
+            const twist = cubie.y === 1 ? (isOnLR ? 1 : 2) : (isOnLR ? 2 : 1);
+            cornerTwistSum += twist;
+          }
+        }
+      }
+
+      // Edge check
+      if (stickersCount === 2) {
+        const colors = cubie.colors;
+        const hasUD = Object.values(colors).some(c => c === 'yellow' || c === 'white');
+        if (hasUD) {
+          const udOnFace = (colors.u === 'yellow' || colors.u === 'white' || colors.d === 'yellow' || colors.d === 'white');
+          if (!udOnFace) {
+            edgeFlipSum++;
+          }
+        } else {
+          // If no UD color, F/B color (green/blue) must be on F/B face
+          const hasFB = Object.values(colors).some(c => c === 'green' || c === 'blue');
+          if (hasFB) {
+            const fbOnFace = (colors.f === 'green' || colors.f === 'blue' || colors.b === 'green' || colors.b === 'blue');
+            if (!fbOnFace) {
+              edgeFlipSum++;
+            }
+          }
+        }
+      }
+    }
+
+    if (cornerTwistSum % 3 !== 0) {
+      throw new Error(`Corner Twist Parity Error: Corner twists sum mod 3 must be 0 (got sum ${cornerTwistSum}).`);
+    }
+
+    if (edgeFlipSum % 2 !== 0) {
+      throw new Error(`Edge Flip Parity Error: Edge flips must be even (got ${edgeFlipSum} flipped edges).`);
+    }
+  }
 }

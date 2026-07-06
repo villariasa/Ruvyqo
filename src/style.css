@@ -730,4 +730,78 @@ header {
   box-shadow: 0 0 10px var(--neon-green);
 }
 
+/* Sub-tab styling */
+.btn-sub-tab {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+  transition: all var(--transition-speed);
+}
+
+.btn-sub-tab.active {
+  background: rgba(0, 240, 255, 0.05);
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
+  box-shadow: 0 0 8px rgba(0, 240, 255, 0.15);
+}
+
+/* Onboarding modal & slides */
+#onboarding-modal .glass-panel {
+  animation: modalSlideUp var(--transition-speed) cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalSlideUp {
+  from {
+    transform: translateY(20px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Toast alert warnings */
+.toast-alert {
+  animation: toastFadeIn 0.3s ease;
+}
+
+@keyframes toastFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Piece chips in HUD */
+.piece-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-family: monospace;
+  font-weight: bold;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-secondary);
+}
+
+.piece-chip.solved {
+  background: rgba(57, 255, 20, 0.1);
+  border-color: var(--neon-green);
+  color: var(--neon-green);
+  text-shadow: 0 0 5px rgba(57,255,20,0.3);
+}
+
+#btn-toggle-intuition.active {
+  background: rgba(0, 240, 255, 0.15) !important;
+  border-color: var(--neon-cyan) !important;
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.4) !important;
+}
+
+
 

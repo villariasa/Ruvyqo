@@ -1,5 +1,4 @@
-// Main Controller for Roux Method Cyber Solver & Trainer
-
+// Main Orchestration Controller for Roux Method Cyber Solver & Trainer
 import './style.css';
 import { CubeState } from './engine/cube-state.js';
 import { generateScramble } from './engine/scramble-generator.js';
@@ -11,10 +10,23 @@ import {
   isFirstBlockSolved,
   isSecondBlockSolved,
   isCMLLSolved,
-  isPieceSolved
+  isPieceSolved,
+  getRouxStage
 } from './recognition/stage-recognizer.js';
+import { solvePattern } from './solver/pattern-solver.js';
+import { storage } from './persistence/storage.js';
 
-// Elements
+// Import UI subpanels
+import { CurriculumPanel } from './ui/curriculum-panel.js';
+import { LessonsPanel, getNextLesson } from './ui/lessons-panel.js';
+import { CMLLPanel } from './ui/cmll-panel.js';
+import { CompeteMode } from './ui/compete-mode.js';
+import { StatsPanel } from './ui/stats-panel.js';
+import { initOnboardingModal } from './ui/onboarding-modal.js';
+import { LESSONS } from './data/lessons.js';
+import cmllAlgorithms from './data/cmll-algorithms.json';
+
+// Global variables & state elements
 const container = document.getElementById('three-container');
 const btnSolve = document.getElementById('btn-solve');
 const btnScramble = document.getElementById('btn-scramble');
@@ -37,9 +49,7 @@ const overlaySolveBadge = document.getElementById('overlay-solve-badge');
 
 const btnResetCam = document.getElementById('hud-btn-reset-cam');
 const btnIsolation = document.getElementById('hud-btn-isolation');
-const stageInfoBox = document.getElementById('stage-info-box');
 
-// Custom controls elements
 const selectPlaybackSpeed = document.getElementById('select-playback-speed');
 const chkStageFb = document.getElementById('chk-stage-fb');
 const chkStageSb = document.getElementById('chk-stage-sb');
@@ -48,391 +58,317 @@ const chkStageLse = document.getElementById('chk-stage-lse');
 const customScrambleInput = document.getElementById('custom-scramble-input');
 const btnApplyScramble = document.getElementById('btn-apply-scramble');
 
-// Compete Mode elements
-const btnToggleCompete = document.getElementById('btn-toggle-compete');
-const viewportNormal = document.getElementById('viewport-normal');
-const viewportCompete = document.getElementById('viewport-compete');
-const timerUserEl = document.getElementById('timer-user');
-const timerAiEl = document.getElementById('timer-ai');
-const competeStatusBanner = document.getElementById('compete-status-banner');
-const competeCountdownOverlay = document.getElementById('compete-countdown-overlay');
-const countdownText = document.getElementById('countdown-text');
-const inputAiTargetTime = document.getElementById('input-ai-target-time');
-const btnStartCompete = document.getElementById('btn-start-compete');
-
-// Tutorial Mode Elements
+// Tab Navigation Elements
 const tabCurriculum = document.getElementById('tab-curriculum');
 const tabLessons = document.getElementById('tab-lessons');
+const tabStats = document.getElementById('tab-stats');
 const curriculumContent = document.getElementById('curriculum-content');
 const lessonsContent = document.getElementById('lessons-content');
-const lessonsList = document.getElementById('lessons-list');
+const statsContent = document.getElementById('stats-content');
 
-const lessonHud = document.getElementById('lesson-hud');
-const lessonHudTitle = document.getElementById('lesson-hud-title');
-const lessonHudDesc = document.getElementById('lesson-hud-desc');
-const lessonHudHint = document.getElementById('lesson-hud-hint');
-const btnLessonExit = document.getElementById('btn-lesson-exit');
+// Sub-Tab Navigation Elements
+const subTabStages = document.getElementById('sub-tab-stages');
+const subTabCmll = document.getElementById('sub-tab-cmll');
+const subTabGlossary = document.getElementById('sub-tab-glossary');
 
-const lessonSuccessOverlay = document.getElementById('lesson-success-overlay');
-const lessonSuccessMessage = document.getElementById('lesson-success-message');
-const btnLessonNext = document.getElementById('btn-lesson-next');
-
-// Lessons Database
-const LESSONS = [
-  {
-    id: 'fb_dl',
-    title: 'Lesson 1: DL Edge',
-    step: 'First Block',
-    setupScramble: "U' L2 U L2 U' L2",
-    objective: "Solve the DL edge (Orange/White) to its position at bottom-left.",
-    hint: "Bring the DL edge down to its slot. Try: U L2",
-    verify: (cubeState) => isPieceSolved(cubeState, 9)
-  },
-  {
-    id: 'fb_bl',
-    title: 'Lesson 2: BL Edge',
-    step: 'First Block',
-    setupScramble: "U M2 U' M2",
-    objective: "Solve the BL edge (Orange/Blue) while keeping the DL edge solved.",
-    hint: "Use M slice turns. Try: U M2 U'",
-    verify: (cubeState) => isPieceSolved(cubeState, 9) && isPieceSolved(cubeState, 3)
-  },
-  {
-    id: 'fb_complete',
-    title: 'Lesson 3: DBL Corner',
-    step: 'First Block',
-    setupScramble: "U R U' R' U' L2",
-    objective: "Solve the DBL corner (Orange/Blue/White) to complete the back-left square.",
-    hint: "Pair the corner and insert. Try: U R U' R'",
-    verify: (cubeState) => isPieceSolved(cubeState, 9) && isPieceSolved(cubeState, 3) && isPieceSolved(cubeState, 0)
-  },
-  {
-    id: 'sb_dr',
-    title: 'Lesson 4: DR Edge',
-    step: 'Second Block',
-    setupScramble: "U R2 U' R2",
-    objective: "Solve the DR edge (Red/White) on the right side.",
-    hint: "Try: U R2 U'",
-    verify: (cubeState) => isFirstBlockSolved(cubeState) && isPieceSolved(cubeState, 11)
-  },
-  {
-    id: 'lse_eo',
-    title: 'Lesson 5: Edge Orientation',
-    step: 'LSE Stage',
-    setupScramble: "M' U M U' M' U M",
-    objective: "Orient the remaining six edges using M/U moves.",
-    hint: "Try: M' U M",
-    verify: (cubeState) => {
-      const LSE_IDS = [15, 17, 25, 7, 19, 1];
-      return LSE_IDS.every(id => {
-        const cubie = cubeState.cubies.find(c => c.id === id);
-        if (!cubie) return false;
-        const faceColors = {
-          u: cubeState.cubies.find(c => c.x === 0 && c.y === 1 && c.z === 0)?.colors.u,
-          d: cubeState.cubies.find(c => c.x === 0 && c.y === -1 && c.z === 0)?.colors.d
-        };
-        const udFace = Object.keys(cubie.colors).find(
-          face => cubie.colors[face] === faceColors.u || cubie.colors[face] === faceColors.d
-        );
-        return udFace === 'u' || udFace === 'd';
-      });
-    }
-  }
-];
+// Intuition mode elements
+const btnToggleIntuition = document.getElementById('btn-toggle-intuition');
+const intuitionHud = document.getElementById('intuition-hud');
+const btnIntuitionExit = document.getElementById('btn-intuition-exit');
+const btnIntuitionHint = document.getElementById('btn-intuition-hint');
+const intuitionHintText = document.getElementById('intuition-hint-text');
 
 // Roux Stage Target Pieces
 const STAGE_PIECES = {
-  fb: [9, 3, 0, 21, 18, 12], // DL, BL, DBL, FL, DFL, L-center
-  sb: [11, 5, 2, 23, 20, 14], // DR, BR, DBR, FR, DFR, R-center
-  cmll: [24, 6, 8, 26], // UFL, UFR, UBL, UBR corners
-  lse: [15, 17, 16, 22, 10, 25, 13, 10, 22, 4, 12, 14] // UL, UR, UB, UF, DB, DF, centers
+  fb: [9, 3, 0, 21, 18, 12],
+  sb: [11, 5, 2, 23, 20, 14],
+  cmll: [24, 6, 8, 26],
+  lse: [15, 17, 16, 22, 10, 25, 13, 10, 22, 4, 12, 14]
 };
 
-const STAGE_INFO = {
-  fb: {
-    title: 'First Block (FB) Solver Target',
-    text: 'Solve DL edge, then BL edge + DBL corner (Back-Left pair), and FL edge + DFL corner (Front-Left pair). All on Left face.'
+// Global App State Object
+const app = {
+  cube: new CubeState(),
+  renderer: null,
+  activeStage: 'fb',
+  isolationActive: true,
+  currentScramble: '',
+  
+  // Lessons state
+  activeLesson: null,
+  
+  // Compete state
+  isCompeteMode: false,
+  userCube: null,
+  aiCube: null,
+  userRenderer: null,
+  aiRenderer: null,
+  competeActive: false,
+  competeLockInput: false,
+  userFinished: false,
+  aiFinished: false,
+
+  // Intuition state
+  isIntuitionMode: false,
+
+  // Panels
+  curriculumPanel: null,
+  lessonsPanel: null,
+  cmllPanel: null,
+  competeMode: null,
+  statsPanel: null,
+
+  // Methods
+  applyStageHighlight() {
+    if (this.isolationActive) {
+      this.renderer.updateStageHighlight(STAGE_PIECES[this.activeStage], true);
+    } else {
+      this.renderer.updateStageHighlight([], false);
+    }
   },
-  sb: {
-    title: 'Second Block (SB) Solver Target',
-    text: 'Solve DR edge, then BR edge + DBR corner (Back-Right pair), and FR edge + DFR corner (Front-Right pair). Built on Right face.'
+
+  updateHUD() {
+    const stageNameMap = {
+      fb: 'First Block',
+      sb: 'Second Block',
+      cmll: 'CMLL corners',
+      lse: 'LSE edges'
+    };
+    hudRouxStage.innerText = stageNameMap[this.activeStage] || 'Idle';
+    if (this.cube.isSolved()) {
+      hudRouxStage.innerText = 'Solved!';
+    }
   },
-  cmll: {
-    title: 'CMLL Corner Alignment Target',
-    text: 'Solve the orientations and permutations of the 4 top corners. Leaves the bottom blocks intact.'
+
+  resetPlayback() {
+    currentSolve = null;
+    flatSolveMoves = [];
+    solvePlaybackIndex = 0;
+    isPlayingPlayback = false;
+    playbackStartState = null;
+    if (playbackTimer) {
+      clearInterval(playbackTimer);
+      playbackTimer = null;
+    }
+    btnPlayToggle.innerText = '▶️';
+    scrubberSlider.disabled = true;
+    scrubberSlider.max = 0;
+    scrubberSlider.value = 0;
+    scrubberText.innerText = '0 / 0';
+    hudSolveLen.innerText = '--';
+    solveOverlay.classList.remove('visible');
+    stepLog.innerHTML = '';
   },
-  lse: {
-    title: 'Last Six Edges (LSE) Solver Target',
-    text: 'Solve edge orientation (EO), UL/UR edge placements, and permute the remaining middle slice edges to complete the solve.'
+
+  exitLesson() {
+    if (!this.activeLesson) return;
+    this.activeLesson = null;
+    document.getElementById('lesson-hud').style.display = 'none';
+    document.getElementById('lesson-success-overlay').style.display = 'none';
+    document.querySelectorAll('.lesson-card').forEach(c => c.classList.remove('active'));
+    this.cube.reset();
+    this.renderer.setCubeState(this.cube);
+    this.updateHUD();
   }
 };
 
-// Global State
-const cube = new CubeState();
-const renderer = new Cube3DRenderer(container);
-
-let activeStage = 'fb';
-let isolationActive = true;
-let currentScramble = '';
-let currentSolve = null; // List of steps
-let flatSolveMoves = []; // Flat list of move objects
-let solvePlaybackIndex = 0; // Index of the next move to apply
+// Playback Variables
+let currentSolve = null;
+let flatSolveMoves = [];
+let solvePlaybackIndex = 0;
 let isPlayingPlayback = false;
 let playbackTimer = null;
 let playbackStartState = null;
 
-// AI Compete State
-let isCompeteMode = false;
-let userCube = null;
-let userRenderer = null;
-let aiCube = null;
-let aiRenderer = null;
-let competeTimerInterval = null;
-let userFinished = false;
-let aiFinished = false;
-let competeActive = false;
-let competeLockInput = false;
+// Free Solve Timer State
+let freeSolveScrambleApplied = false;
+let freeSolveStartTime = null;
+let freeSolveTimerRunning = false;
+let fbFinishTime = null;
+let sbFinishTime = null;
+let cmllFinishTime = null;
 
-// Lesson Active State
-let activeLesson = null;
+// Display Warning Toasts
+export function showToast(message, type = 'warning') {
+  const toast = document.createElement('div');
+  toast.className = `toast-alert toast-${type}`;
+  toast.innerText = message;
+  
+  toast.style.position = 'fixed';
+  toast.style.bottom = '30px';
+  toast.style.right = '30px';
+  toast.style.zIndex = '1000';
+  toast.style.padding = '12px 20px';
+  toast.style.borderRadius = '8px';
+  toast.style.background = type === 'warning' ? 'rgba(255, 0, 127, 0.9)' : 'rgba(0, 240, 255, 0.9)';
+  toast.style.border = type === 'warning' ? '1px solid var(--neon-pink)' : '1px solid var(--neon-cyan)';
+  toast.style.color = '#fff';
+  toast.style.fontFamily = "'Space Grotesk', sans-serif";
+  toast.style.fontSize = '0.9rem';
+  toast.style.fontWeight = 'bold';
+  toast.style.boxShadow = '0 4px 15px rgba(0,0,0,0.5)';
+  toast.style.pointerEvents = 'none';
+  toast.style.transition = 'opacity 0.3s, transform 0.3s';
+  toast.style.transform = 'translateY(10px)';
+  toast.style.opacity = '0';
+  
+  document.body.appendChild(toast);
+  
+  toast.offsetHeight; // Reflow
+  
+  toast.style.transform = 'translateY(0)';
+  toast.style.opacity = '1';
+  
+  setTimeout(() => {
+    toast.style.transform = 'translateY(-10px)';
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
 
-// Initialize
-renderer.setCubeState(cube);
-updateHUD();
-populateLessons();
+// Initializing Context and sub panels
+app.renderer = new Cube3DRenderer(container);
+app.renderer.setCubeState(app.cube);
 
-// Tab switching handlers
+app.curriculumPanel = new CurriculumPanel(app);
+app.lessonsPanel = new LessonsPanel(app);
+app.cmllPanel = new CMLLPanel(app);
+app.competeMode = new CompeteMode(app);
+app.statsPanel = new StatsPanel(app);
+
+// Mount default views
+app.curriculumPanel.renderStages();
+app.lessonsPanel.render();
+app.statsPanel.mount(statsContent);
+app.updateHUD();
+
+// Start onboarding
+initOnboardingModal(app);
+
+// Navigation tab clicks
 tabCurriculum.addEventListener('click', () => {
-  tabCurriculum.classList.add('active');
-  tabLessons.classList.remove('active');
-  curriculumContent.style.display = 'block';
-  lessonsContent.style.display = 'none';
-  exitLesson();
-
-  tabCurriculum.style.background = 'rgba(0,240,255,0.1)';
-  tabCurriculum.style.borderColor = 'var(--neon-cyan)';
-  tabCurriculum.style.color = 'var(--neon-cyan)';
-  tabLessons.style.background = 'rgba(255,255,255,0.02)';
-  tabLessons.style.borderColor = 'rgba(255,255,255,0.1)';
-  tabLessons.style.color = 'var(--text-secondary)';
+  setTabActive(tabCurriculum, curriculumContent, 'var(--neon-cyan)');
+  setTabInactive(tabLessons, lessonsContent);
+  setTabInactive(tabStats, statsContent);
+  app.exitLesson();
+  exitIntuitionMode();
+  app.curriculumPanel.renderStages();
+  subTabStages.click();
 });
 
 tabLessons.addEventListener('click', () => {
-  tabLessons.classList.add('active');
-  tabCurriculum.classList.remove('active');
-  curriculumContent.style.display = 'none';
-  lessonsContent.style.display = 'flex';
-
-  tabLessons.style.background = 'rgba(57,255,20,0.1)';
-  tabLessons.style.borderColor = 'var(--neon-green)';
-  tabLessons.style.color = 'var(--neon-green)';
-  tabCurriculum.style.background = 'rgba(255,255,255,0.02)';
-  tabCurriculum.style.borderColor = 'rgba(255,255,255,0.1)';
-  tabCurriculum.style.color = 'var(--text-secondary)';
+  setTabActive(tabLessons, lessonsContent, 'var(--neon-green)');
+  setTabInactive(tabCurriculum, curriculumContent);
+  setTabInactive(tabStats, statsContent);
+  exitIntuitionMode();
+  app.lessonsPanel.render();
 });
 
-// Populating Lessons
-function populateLessons() {
-  lessonsList.innerHTML = '';
-  LESSONS.forEach(lesson => {
-    const card = document.createElement('div');
-    card.className = 'lesson-card';
-    card.dataset.lessonId = lesson.id;
-    card.innerHTML = `
-      <div class="lesson-card-header">
-        <span class="lesson-card-step">${lesson.step}</span>
-      </div>
-      <h3 class="lesson-card-title">${lesson.title}</h3>
-      <p class="lesson-card-desc">${lesson.objective}</p>
-      <button class="lesson-btn-start">Start Lesson</button>
-    `;
-    
-    // Bind click to Start Lesson button
-    card.querySelector('.lesson-btn-start').addEventListener('click', (e) => {
-      e.stopPropagation();
-      startLesson(lesson);
-    });
-
-    lessonsList.appendChild(card);
-  });
-}
-
-function startLesson(lesson) {
-  resetPlayback();
-  activeLesson = lesson;
-
-  // Add active styling
-  document.querySelectorAll('.lesson-card').forEach(c => c.classList.remove('active'));
-  const card = document.querySelector(`.lesson-card[data-lesson-id="${lesson.id}"]`);
-  if (card) card.classList.add('active');
-
-  // Load scramble setup onto the cube
-  cube.reset();
-  executeSequence(cube, lesson.setupScramble);
-  renderer.setCubeState(cube);
-
-  // Update HUD elements
-  lessonHudTitle.innerText = lesson.title;
-  lessonHudDesc.innerText = lesson.objective;
-  lessonHudHint.innerText = lesson.hint;
-  lessonHud.style.display = 'flex';
-  lessonSuccessOverlay.style.display = 'none';
-
-  // Highlight specific stages if appropriate
-  if (lesson.id.startsWith('fb')) {
-    activeStage = 'fb';
-  } else if (lesson.id.startsWith('sb')) {
-    activeStage = 'sb';
-  } else if (lesson.id.startsWith('lse')) {
-    activeStage = 'lse';
-  }
-  applyStageHighlight();
-}
-
-function exitLesson() {
-  if (!activeLesson) return;
-  activeLesson = null;
-  lessonHud.style.display = 'none';
-  lessonSuccessOverlay.style.display = 'none';
-  document.querySelectorAll('.lesson-card').forEach(c => c.classList.remove('active'));
-  
-  cube.reset();
-  renderer.setCubeState(cube);
-  updateHUD();
-}
-
-btnLessonExit.addEventListener('click', exitLesson);
-
-btnLessonNext.addEventListener('click', () => {
-  lessonSuccessOverlay.style.display = 'none';
-  const currentIdx = LESSONS.findIndex(l => l.id === activeLesson.id);
-  const nextLesson = LESSONS[currentIdx + 1];
-  if (nextLesson) {
-    startLesson(nextLesson);
-  } else {
-    // End of lessons
-    exitLesson();
-    scrambleDisplay.innerText = '🎉 All lessons complete! Excellent job!';
-  }
+tabStats.addEventListener('click', () => {
+  setTabActive(tabStats, statsContent, 'var(--neon-cyan)');
+  setTabInactive(tabCurriculum, curriculumContent);
+  setTabInactive(tabLessons, lessonsContent);
+  app.exitLesson();
+  exitIntuitionMode();
+  app.statsPanel.render();
 });
 
-// Helper for playback speed
+function setTabActive(btn, contentEl, activeColor) {
+  btn.classList.add('active');
+  btn.style.background = `rgba(${activeColor === 'var(--neon-cyan)' ? '0,240,255' : '57,255,20'}, 0.1)`;
+  btn.style.borderColor = activeColor;
+  btn.style.color = activeColor;
+  contentEl.style.display = 'flex';
+}
+
+function setTabInactive(btn, contentEl) {
+  btn.classList.remove('active');
+  btn.style.background = 'rgba(255,255,255,0.02)';
+  btn.style.borderColor = 'rgba(255,255,255,0.1)';
+  btn.style.color = 'var(--text-secondary)';
+  contentEl.style.display = 'none';
+}
+
+// Sub-Tab Navigation inside Curriculum content
+subTabStages.addEventListener('click', () => {
+  setSubTabActive(subTabStages);
+  setSubTabInactive(subTabCmll);
+  setSubTabInactive(subTabGlossary);
+  app.curriculumPanel.renderStages();
+});
+
+subTabCmll.addEventListener('click', () => {
+  setSubTabActive(subTabCmll);
+  setSubTabInactive(subTabStages);
+  setSubTabInactive(subTabGlossary);
+  app.cmllPanel.renderBrowser();
+});
+
+subTabGlossary.addEventListener('click', () => {
+  setSubTabActive(subTabGlossary);
+  setSubTabInactive(subTabStages);
+  setSubTabInactive(subTabCmll);
+  app.curriculumPanel.renderGlossary();
+});
+
+function setSubTabActive(btn) {
+  btn.classList.add('active');
+}
+
+function setSubTabInactive(btn) {
+  btn.classList.remove('active');
+}
+
+// Playback Helper Speed
 function getPlaybackSpeed() {
   return parseFloat(selectPlaybackSpeed.value) || 1.0;
 }
 
-// Helper to update active stage highlighting
-function applyStageHighlight() {
-  if (isolationActive) {
-    renderer.updateStageHighlight(STAGE_PIECES[activeStage], true);
-  } else {
-    renderer.updateStageHighlight([], false);
-  }
-  
-  stageInfoBox.innerHTML = `
-    <div class="info-title">${STAGE_INFO[activeStage].title}</div>
-    <div>${STAGE_INFO[activeStage].text}</div>
-  `;
-}
-applyStageHighlight();
-
-// Toggle Compete Mode
-btnToggleCompete.addEventListener('click', () => {
-  resetPlayback();
-  exitLesson();
-  isCompeteMode = !isCompeteMode;
-
-  if (isCompeteMode) {
-    btnToggleCompete.innerText = '👤 Normal Training Mode';
-    btnToggleCompete.classList.add('active');
-    viewportNormal.style.display = 'none';
-    viewportCompete.style.display = 'flex';
-
-    // Initialize Compete viewports if not done
-    if (!userCube) {
-      userCube = new CubeState();
-      userRenderer = new Cube3DRenderer(document.getElementById('three-container-user'));
-      userRenderer.setCubeState(userCube);
-
-      aiCube = new CubeState();
-      aiRenderer = new Cube3DRenderer(document.getElementById('three-container-ai'));
-      aiRenderer.setCubeState(aiCube);
-    } else {
-      userCube.reset();
-      userRenderer.setCubeState(userCube);
-      aiCube.reset();
-      aiRenderer.setCubeState(aiCube);
-    }
-    
-    // Reset Compete timers
-    timerUserEl.innerHTML = `Human: <span style="color: var(--neon-cyan); font-weight: bold; font-family: monospace;">0.00s</span>`;
-    timerAiEl.innerHTML = `Roux AI: <span style="color: var(--neon-green); font-weight: bold; font-family: monospace;">0.00s</span>`;
-    competeStatusBanner.innerText = 'Ready!';
-    competeActive = false;
-    competeLockInput = false;
-  } else {
-    btnToggleCompete.innerText = '🤖 Compete with AI Mode';
-    btnToggleCompete.classList.remove('active');
-    viewportNormal.style.display = 'flex';
-    viewportCompete.style.display = 'none';
-    
-    if (competeTimerInterval) {
-      clearInterval(competeTimerInterval);
-      competeTimerInterval = null;
-    }
-  }
-
-  // Force resizing update in Three.js
-  setTimeout(() => {
-    window.dispatchEvent(new Event('resize'));
-  }, 100);
-});
-
-// Scramble (Animated)
+// Scramble Event
 btnScramble.addEventListener('click', async () => {
-  resetPlayback();
-  exitLesson();
+  app.resetPlayback();
+  app.exitLesson();
+  exitIntuitionMode();
+  
   btnScramble.disabled = true;
   btnSolve.disabled = true;
   btnApplyScramble.disabled = true;
 
   const speed = getPlaybackSpeed();
+  app.currentScramble = generateScramble(15);
+  freeSolveScrambleApplied = true;
+  freeSolveTimerRunning = false;
 
-  if (isCompeteMode) {
-    userCube.reset();
-    userRenderer.setCubeState(userCube);
-    aiCube.reset();
-    aiRenderer.setCubeState(aiCube);
+  if (app.isCompeteMode) {
+    app.userCube.reset();
+    app.userRenderer.setCubeState(app.userCube);
+    app.aiCube.reset();
+    app.aiRenderer.setCubeState(app.aiCube);
 
-    currentScramble = generateScramble(15);
     scrambleDisplay.innerText = 'Scrambling both cubes...';
-
-    const moves = currentScramble.split(' ').filter(Boolean);
+    const moves = app.currentScramble.split(' ').filter(Boolean);
     for (const mStr of moves) {
       const parsed = parseMove(mStr);
-      executeMove(userCube, parsed);
-      executeMove(aiCube, parsed);
-      userRenderer.animateMove(mStr, 120 / speed);
-      await aiRenderer.animateMove(mStr, 120 / speed);
+      executeMove(app.userCube, parsed);
+      executeMove(app.aiCube, parsed);
+      app.userRenderer.animateMove(mStr, 120 / speed);
+      await app.aiRenderer.animateMove(mStr, 120 / speed);
     }
-    scrambleDisplay.innerText = currentScramble;
   } else {
-    cube.reset();
-    renderer.setCubeState(cube);
+    app.cube.reset();
+    app.renderer.setCubeState(app.cube);
 
-    currentScramble = generateScramble(15);
     scrambleDisplay.innerText = 'Scrambling...';
-
-    const moves = currentScramble.split(' ').filter(Boolean);
+    const moves = app.currentScramble.split(' ').filter(Boolean);
     for (const mStr of moves) {
       const parsed = parseMove(mStr);
-      executeMove(cube, parsed);
-      await renderer.animateMove(mStr, 120 / speed);
+      executeMove(app.cube, parsed);
+      await app.renderer.animateMove(mStr, 120 / speed);
     }
-    scrambleDisplay.innerText = currentScramble;
-    updateHUD();
+    app.updateHUD();
   }
 
+  scrambleDisplay.innerText = app.currentScramble;
   btnScramble.disabled = false;
   btnSolve.disabled = false;
   btnApplyScramble.disabled = false;
@@ -446,97 +382,102 @@ btnApplyScramble.addEventListener('click', async () => {
     return;
   }
 
-  resetPlayback();
-  exitLesson();
+  app.resetPlayback();
+  app.exitLesson();
+  exitIntuitionMode();
+  
   btnScramble.disabled = true;
   btnSolve.disabled = true;
   btnApplyScramble.disabled = true;
 
   const speed = getPlaybackSpeed();
-  currentScramble = sequence;
+  app.currentScramble = sequence;
+  freeSolveScrambleApplied = true;
+  freeSolveTimerRunning = false;
 
-  if (isCompeteMode) {
-    userCube.reset();
-    userRenderer.setCubeState(userCube);
-    aiCube.reset();
-    aiRenderer.setCubeState(aiCube);
+  if (app.isCompeteMode) {
+    app.userCube.reset();
+    app.userRenderer.setCubeState(app.userCube);
+    app.aiCube.reset();
+    app.aiRenderer.setCubeState(app.aiCube);
 
     scrambleDisplay.innerText = 'Applying custom scramble...';
-
     const moves = sequence.split(' ').filter(Boolean);
     try {
       for (const mStr of moves) {
         const parsed = parseMove(mStr);
-        executeMove(userCube, parsed);
-        executeMove(aiCube, parsed);
-        userRenderer.animateMove(mStr, 120 / speed);
-        await aiRenderer.animateMove(mStr, 120 / speed);
+        executeMove(app.userCube, parsed);
+        executeMove(app.aiCube, parsed);
+        app.userRenderer.animateMove(mStr, 120 / speed);
+        await app.aiRenderer.animateMove(mStr, 120 / speed);
       }
-      scrambleDisplay.innerText = sequence;
     } catch (err) {
-      scrambleDisplay.innerText = `Invalid move in sequence: ${err.message}`;
+      scrambleDisplay.innerText = `Invalid move: ${err.message}`;
     }
   } else {
-    cube.reset();
-    renderer.setCubeState(cube);
+    app.cube.reset();
+    app.renderer.setCubeState(app.cube);
 
     scrambleDisplay.innerText = 'Applying custom scramble...';
-
     const moves = sequence.split(' ').filter(Boolean);
     try {
       for (const mStr of moves) {
         const parsed = parseMove(mStr);
-        executeMove(cube, parsed);
-        await renderer.animateMove(mStr, 120 / speed);
+        executeMove(app.cube, parsed);
+        await app.renderer.animateMove(mStr, 120 / speed);
       }
-      scrambleDisplay.innerText = sequence;
-      updateHUD();
+      app.updateHUD();
     } catch (err) {
-      scrambleDisplay.innerText = `Invalid move in sequence: ${err.message}`;
+      scrambleDisplay.innerText = `Invalid move: ${err.message}`;
     }
   }
 
+  scrambleDisplay.innerText = sequence;
   btnScramble.disabled = false;
   btnSolve.disabled = false;
   btnApplyScramble.disabled = false;
 });
 
-// Reset
+// Reset Event
 btnReset.addEventListener('click', () => {
-  resetPlayback();
-  exitLesson();
-  if (isCompeteMode) {
-    userCube.reset();
-    userRenderer.setCubeState(userCube);
-    aiCube.reset();
-    aiRenderer.setCubeState(aiCube);
+  app.resetPlayback();
+  app.exitLesson();
+  exitIntuitionMode();
+  freeSolveScrambleApplied = false;
+  freeSolveTimerRunning = false;
+
+  if (app.isCompeteMode) {
+    app.userCube.reset();
+    app.userRenderer.setCubeState(app.userCube);
+    app.aiCube.reset();
+    app.aiRenderer.setCubeState(app.aiCube);
     scrambleDisplay.innerText = 'Cubes reset to solved state';
   } else {
-    cube.reset();
-    renderer.setCubeState(cube);
+    app.cube.reset();
+    app.renderer.setCubeState(app.cube);
     scrambleDisplay.innerText = 'Cube reset to solved state';
-    updateHUD();
+    app.updateHUD();
   }
 });
 
-// Solve
+// Solver Solve Event
 btnSolve.addEventListener('click', () => {
-  if (isCompeteMode) {
+  if (app.isCompeteMode) {
     scrambleDisplay.innerText = 'Solve control is disabled in Compete Mode.';
     return;
   }
-  if (cube.isSolved()) {
+  if (app.cube.isSolved()) {
     scrambleDisplay.innerText = 'Cube is already solved!';
     return;
   }
 
-  resetPlayback();
-  exitLesson();
+  app.resetPlayback();
+  app.exitLesson();
+  exitIntuitionMode();
   btnSolve.innerText = 'Solving...';
   btnSolve.disabled = true;
 
-  // Selective Stages Configuration
-  const solveOptions = {
+  const options = {
     fb: chkStageFb.checked,
     sb: chkStageSb.checked,
     cmll: chkStageCmll.checked,
@@ -545,16 +486,13 @@ btnSolve.addEventListener('click', () => {
 
   setTimeout(() => {
     try {
-      const solveStartState = cube.clone();
-      const aiStartTime = performance.now();
-      const solveResult = solveCube(solveStartState, solveOptions);
-      const searchDurationMs = Math.round(performance.now() - aiStartTime);
+      const solveStartState = app.cube.clone();
+      const solveResult = solveCube(solveStartState, options);
 
       playbackStartState = solveStartState.clone();
       currentSolve = solveResult.steps;
       flatSolveMoves = [];
 
-      // Flatten steps
       currentSolve.forEach((step, stepIdx) => {
         const moves = step.moves ? step.moves.split(' ').filter(Boolean) : [];
         moves.forEach(mStr => {
@@ -568,21 +506,21 @@ btnSolve.addEventListener('click', () => {
       });
 
       hudSolveLen.innerText = `${flatSolveMoves.length} moves`;
-      scrambleDisplay.innerText = `Solution found in ${searchDurationMs}ms: ${solveResult.totalMoves || 'Already complete!'}`;
+      scrambleDisplay.innerText = `Solution: ${solveResult.totalMoves || 'Already solved!'}`;
       btnSolve.innerText = 'Solve Cube';
       btnSolve.disabled = false;
 
       setupPlayback();
     } catch (err) {
       console.error(err);
-      scrambleDisplay.innerText = `Solver Error: ${err.message}. Check your scramble!`;
+      scrambleDisplay.innerText = `Solver error: ${err.message}`;
       btnSolve.innerText = 'Solve Cube';
       btnSolve.disabled = false;
     }
   }, 50);
 });
 
-// Playback engine
+// Playback slider settings
 function setupPlayback() {
   solvePlaybackIndex = 0;
   isPlayingPlayback = false;
@@ -593,14 +531,18 @@ function setupPlayback() {
   scrubberSlider.value = 0;
   updatePlaybackHUD();
 
-  // Populate step log list
   stepLog.innerHTML = '';
   currentSolve.forEach((step, idx) => {
     const item = document.createElement('div');
     item.className = 'step-item';
     item.innerHTML = `
-      <span class="step-label">${step.name}</span>
-      <span class="step-moves">${step.moves || 'Solved'}</span>
+      <div style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <span class="step-label">${step.name}</span>
+          <span class="step-moves">${step.moves || 'Solved'}</span>
+        </div>
+        ${step.explanation ? `<p style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.3; text-align: left; margin: 0; margin-top: 2px;">${step.explanation}</p>` : ''}
+      </div>
     `;
     item.addEventListener('click', () => {
       let targetIdx = 0;
@@ -616,26 +558,6 @@ function setupPlayback() {
   });
 }
 
-function resetPlayback() {
-  currentSolve = null;
-  flatSolveMoves = [];
-  solvePlaybackIndex = 0;
-  isPlayingPlayback = false;
-  playbackStartState = null;
-  if (playbackTimer) {
-    clearInterval(playbackTimer);
-    playbackTimer = null;
-  }
-  btnPlayToggle.innerText = '▶️';
-  scrubberSlider.disabled = true;
-  scrubberSlider.max = 0;
-  scrubberSlider.value = 0;
-  scrubberText.innerText = '0 / 0';
-  hudSolveLen.innerText = '--';
-  solveOverlay.classList.remove('visible');
-  stepLog.innerHTML = '';
-}
-
 function updatePlaybackHUD() {
   scrubberText.innerText = `${solvePlaybackIndex} / ${flatSolveMoves.length}`;
   scrubberSlider.value = solvePlaybackIndex;
@@ -647,7 +569,6 @@ function updatePlaybackHUD() {
     overlayStepMoves.innerText = `Next Move: ${nextMove.raw}`;
     overlaySolveBadge.innerText = `Move ${solvePlaybackIndex + 1} / ${flatSolveMoves.length}`;
 
-    // Highlight active step
     const items = stepLog.children;
     for (let i = 0; i < items.length; i++) {
       if (i === nextMove.stepIndex - 1) {
@@ -670,55 +591,37 @@ async function playNextStep() {
     pausePlayback();
     return;
   }
-
   const speed = getPlaybackSpeed();
-  const move = flatSolveMoves[solvePlaybackIndex];
-  solvePlaybackIndex++;
-  
-  const parsed = parseMove(move.raw);
-  executeMove(cube, parsed);
-
+  const move = flatSolveMoves[solvePlaybackIndex++];
+  executeMove(app.cube, parseMove(move.raw));
   updatePlaybackHUD();
-  await renderer.animateMove(move.raw, 180 / speed);
+  await app.renderer.animateMove(move.raw, 180 / speed);
 }
 
 function playPrevStep() {
   if (solvePlaybackIndex <= 0) return;
-
   const speed = getPlaybackSpeed();
-  solvePlaybackIndex--;
-  const move = flatSolveMoves[solvePlaybackIndex];
-  
+  const move = flatSolveMoves[--solvePlaybackIndex];
   const parsed = parseMove(move.raw);
-  const inv = { ...parsed, prime: !parsed.prime };
-  if (parsed.double) inv.prime = false;
-
-  executeMove(cube, inv);
-
+  const inv = { ...parsed, prime: !parsed.double && !parsed.prime };
+  executeMove(app.cube, inv);
   updatePlaybackHUD();
-  renderer.animateMove(inv.face + (inv.prime ? "'" : (inv.double ? "2" : "")), 180 / speed);
+  app.renderer.animateMove(parsed.face + (inv.prime ? "'" : (parsed.double ? '2' : '')), 180 / speed);
 }
 
 function seekPlaybackTo(targetIndex) {
   const currentCube = playbackStartState ? playbackStartState.clone() : new CubeState();
-  if (!playbackStartState && currentScramble) {
-    executeSequence(currentCube, currentScramble);
+  if (!playbackStartState && app.currentScramble) {
+    executeSequence(currentCube, app.currentScramble);
   }
-
   for (let i = 0; i < targetIndex; i++) {
-    const move = flatSolveMoves[i];
-    executeMove(currentCube, parseMove(move.raw));
+    executeMove(currentCube, parseMove(flatSolveMoves[i].raw));
   }
-
-  cube.cubies = currentCube.cubies.map(c => ({
-    id: c.id,
-    x: c.x,
-    y: c.y,
-    z: c.z,
-    colors: { ...c.colors }
+  app.cube.cubies = currentCube.cubies.map(c => ({
+    id: c.id, x: c.x, y: c.y, z: c.z, colors: { ...c.colors }
   }));
-  cube.moveHistory = [...currentCube.moveHistory];
-  renderer.setCubeState(cube);
+  app.cube.moveHistory = [...currentCube.moveHistory];
+  app.renderer.setCubeState(app.cube);
   solvePlaybackIndex = targetIndex;
   updatePlaybackHUD();
 }
@@ -728,11 +631,8 @@ scrubberSlider.addEventListener('input', (e) => {
 });
 
 function togglePlayPlayback() {
-  if (isPlayingPlayback) {
-    pausePlayback();
-  } else {
-    startPlayback();
-  }
+  if (isPlayingPlayback) pausePlayback();
+  else startPlayback();
 }
 
 function startPlayback() {
@@ -743,7 +643,7 @@ function startPlayback() {
   isPlayingPlayback = true;
   btnPlayToggle.innerText = '⏸️';
   playbackTimer = setInterval(async () => {
-    if (renderer.isAnimating) return;
+    if (app.renderer.isAnimating) return;
     await playNextStep();
   }, 100 / speed);
 }
@@ -758,113 +658,314 @@ function pausePlayback() {
 }
 
 btnPlayToggle.addEventListener('click', togglePlayPlayback);
-btnPlayNext.addEventListener('click', () => {
-  pausePlayback();
-  playNextStep();
-});
-btnPlayPrev.addEventListener('click', () => {
-  pausePlayback();
-  playPrevStep();
-});
+btnPlayNext.addEventListener('click', () => { pausePlayback(); playNextStep(); });
+btnPlayPrev.addEventListener('click', () => { pausePlayback(); playPrevStep(); });
 
 btnResetCam.addEventListener('click', () => {
-  if (isCompeteMode) {
-    userRenderer.camera.position.set(4, 4, 6);
-    userRenderer.controls.target.set(0, 0, 0);
-    userRenderer.controls.update();
-
-    aiRenderer.camera.position.set(4, 4, 6);
-    aiRenderer.controls.target.set(0, 0, 0);
-    aiRenderer.controls.update();
+  if (app.isCompeteMode) {
+    app.userRenderer.camera.position.set(4, 4, 6);
+    app.userRenderer.controls.target.set(0, 0, 0);
+    app.userRenderer.controls.update();
+    app.aiRenderer.camera.position.set(4, 4, 6);
+    app.aiRenderer.controls.target.set(0, 0, 0);
+    app.aiRenderer.controls.update();
   } else {
-    renderer.camera.position.set(4, 4, 6);
-    renderer.controls.target.set(0, 0, 0);
-    renderer.controls.update();
+    app.renderer.camera.position.set(4, 4, 6);
+    app.renderer.controls.target.set(0, 0, 0);
+    app.renderer.controls.update();
   }
 });
 
 btnIsolation.addEventListener('click', () => {
-  isolationActive = !isolationActive;
-  btnIsolation.classList.toggle('active', isolationActive);
-  applyStageHighlight();
+  app.isolationActive = !app.isolationActive;
+  btnIsolation.classList.toggle('active', app.isolationActive);
+  app.applyStageHighlight();
 });
 
-document.querySelectorAll('.curriculum-card').forEach(card => {
-  card.addEventListener('click', (e) => {
-    if (e.target.classList.contains('isolate-btn')) return;
+// Compete Mode Toggle Binding
+document.getElementById('btn-toggle-compete').addEventListener('click', () => {
+  app.competeMode.toggle();
+});
+document.getElementById('btn-start-compete').addEventListener('click', () => {
+  app.competeMode.startRace();
+});
+
+// --- INTUITION MODE INTERACTION LOGIC ---
+btnToggleIntuition.addEventListener('click', () => {
+  app.resetPlayback();
+  app.exitLesson();
+  
+  app.isIntuitionMode = !app.isIntuitionMode;
+  btnToggleIntuition.classList.toggle('active', app.isIntuitionMode);
+
+  if (app.isIntuitionMode) {
+    // Start intuition trainer
+    intuitionHud.style.display = 'flex';
+    app.cube.reset();
     
-    document.querySelectorAll('.curriculum-card').forEach(c => c.classList.remove('active'));
-    card.classList.add('active');
+    // Auto scramble if no scramble exists
+    app.currentScramble = generateScramble(15);
+    scrambleDisplay.innerText = app.currentScramble;
+    executeSequence(app.cube, app.currentScramble);
     
-    activeStage = card.dataset.stage;
-    hudRouxStage.innerText = card.querySelector('.card-title').innerText;
-    applyStageHighlight();
+    app.renderer.setCubeState(app.cube);
+    app.activeStage = 'fb';
+    app.isolationActive = true;
+    app.applyStageHighlight();
+
+    updateIntuitionTracker();
+  } else {
+    exitIntuitionMode();
+  }
+});
+
+btnIntuitionExit.addEventListener('click', exitIntuitionMode);
+
+function exitIntuitionMode() {
+  if (!app.isIntuitionMode) return;
+  app.isIntuitionMode = false;
+  btnToggleIntuition.classList.remove('active');
+  intuitionHud.style.display = 'none';
+  app.cube.reset();
+  app.renderer.setCubeState(app.cube);
+  app.updateHUD();
+}
+
+function updateIntuitionTracker() {
+  if (!app.isIntuitionMode) return;
+
+  const currentStage = getRouxStage(app.cube);
+  const isFB = !isFirstBlockSolved(app.cube);
+  
+  const title = document.getElementById('intuition-hud-title');
+  title.innerText = isFB ? "Building First Block (FB)" : "Building Second Block (SB)";
+  
+  const pieces = isFB ? STAGE_PIECES.fb : STAGE_PIECES.sb;
+  const names = isFB ? 
+    ["DL edge", "BL edge", "DBL corner", "FL edge", "DFL corner", "L center"] :
+    ["DR edge", "BR edge", "DBR corner", "FR edge", "DFR corner", "R center"];
+
+  let solvedCount = 0;
+  const grid = document.getElementById('intuition-pieces-grid');
+  grid.innerHTML = '';
+
+  pieces.forEach((pid, idx) => {
+    const solved = isPieceSolved(app.cube, pid);
+    if (solved) solvedCount++;
+
+    const chip = document.createElement('div');
+    chip.className = `piece-chip ${solved ? 'solved' : ''}`;
+    chip.innerText = `${names[idx]} ${solved ? '✓' : '✗'}`;
+    grid.appendChild(chip);
   });
-});
 
-document.querySelectorAll('.isolate-btn').forEach(btn => {
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    
-    const stage = btn.dataset.stage;
-    const isCurrentlyActive = btn.classList.contains('active');
-    
-    document.querySelectorAll('.isolate-btn').forEach(b => b.classList.remove('active'));
-    
-    if (!isCurrentlyActive) {
-      btn.classList.add('active');
-      activeStage = stage;
-      isolationActive = true;
-      btnIsolation.classList.add('active');
-      
-      document.querySelectorAll('.curriculum-card').forEach(c => c.classList.remove('active'));
-      document.querySelector(`.curriculum-card[data-stage="${stage}"]`).classList.add('active');
+  document.getElementById('intuition-hud-progress').innerText = `${solvedCount} of 6 pieces placed`;
+
+  // Auto transition stage highlight
+  app.activeStage = isFB ? 'fb' : 'sb';
+  app.applyStageHighlight();
+
+  if (isFirstBlockSolved(app.cube) && isSecondBlockSolved(app.cube)) {
+    showToast("🎉 Blocks completed! Excellent intuition!", "info");
+    exitIntuitionMode();
+  }
+}
+
+// Single-move assist hint algorithm
+btnIntuitionHint.addEventListener('click', () => {
+  if (!app.isIntuitionMode) return;
+
+  const isFB = !isFirstBlockSolved(app.cube);
+  let nextMove = null;
+
+  try {
+    if (isFB) {
+      if (!isPieceSolved(app.cube, 9)) {
+        nextMove = solvePattern(app.cube.clone(), [9], ['R', 'L', 'U', 'D', 'F', 'B'], 7)[0];
+      } else if (!isPieceSolved(app.cube, 3)) {
+        nextMove = solvePattern(app.cube.clone(), [9, 3], ['R', 'U', 'F', 'B', 'M'], 9)[0];
+      } else if (!isPieceSolved(app.cube, 0)) {
+        nextMove = solvePattern(app.cube.clone(), [9, 3, 0], ['R', 'U', 'F', 'B', 'M'], 10)[0];
+      } else if (!isPieceSolved(app.cube, 21)) {
+        nextMove = solvePattern(app.cube.clone(), [9, 3, 0, 21], ['R', 'U', 'F', 'M'], 10)[0];
+      } else if (!isPieceSolved(app.cube, 18)) {
+        nextMove = solvePattern(app.cube.clone(), [9, 3, 0, 21, 18], ['R', 'U', 'F', 'M'], 11)[0];
+      }
     } else {
-      isolationActive = false;
-      btnIsolation.classList.remove('active');
+      if (!isPieceSolved(app.cube, 11)) {
+        nextMove = solvePattern(app.cube.clone(), [11], ['R', 'U', 'M'], 8)[0];
+      } else if (!isPieceSolved(app.cube, 5)) {
+        nextMove = solvePattern(app.cube.clone(), [11, 5], ['R', 'U', 'M'], 9)[0];
+      } else if (!isPieceSolved(app.cube, 2)) {
+        nextMove = solvePattern(app.cube.clone(), [11, 5, 2], ['R', 'U', 'M'], 11)[0];
+      } else if (!isPieceSolved(app.cube, 23)) {
+        nextMove = solvePattern(app.cube.clone(), [11, 5, 2, 23], ['R', 'U', 'M'], 14)[0];
+      } else if (!isPieceSolved(app.cube, 20)) {
+        nextMove = solvePattern(app.cube.clone(), [11, 5, 2, 23, 20], ['R', 'U', 'M'], 15)[0];
+      }
     }
-    applyStageHighlight();
-  });
+  } catch (e) {
+    console.error('Hint solver failed:', e);
+  }
+
+  if (nextMove) {
+    intuitionHintText.innerText = `Hint: Try ${nextMove.raw}`;
+    intuitionHintText.style.display = 'block';
+    
+    // Auto hide hint text after 3 seconds
+    setTimeout(() => {
+      intuitionHintText.style.display = 'none';
+    }, 3000);
+  } else {
+    intuitionHintText.innerText = `No hint found. Check blocks.`;
+    intuitionHintText.style.display = 'block';
+  }
 });
 
-// Manual turns helper
+// Dynamic Stage Warnings Helper
+const PIECE_NAMES = {
+  9: "DL edge", 3: "BL edge", 0: "DBL corner", 21: "FL edge", 18: "DFL corner", 12: "L center",
+  11: "DR edge", 5: "BR edge", 2: "DBR corner", 23: "FR edge", 20: "DFR corner", 14: "R center"
+};
+
+// Check if solved blocks are broken
+function checkBlockDisturbances(cubeBefore) {
+  const fbBefore = isFirstBlockSolved(cubeBefore);
+  const sbBefore = isSecondBlockSolved(cubeBefore);
+  const fbAfter = isFirstBlockSolved(app.cube);
+  const sbAfter = isSecondBlockSolved(app.cube);
+
+  // 1. FB disturbance check
+  if (fbBefore && !fbAfter) {
+    const broken = STAGE_PIECES.fb.find(pid => !isPieceSolved(app.cube, pid));
+    if (broken !== undefined) {
+      showToast(`⚠️ FB disturbed: ${PIECE_NAMES[broken] || 'piece'} is now unsolved!`, 'warning');
+    }
+  }
+
+  // 2. SB disturbance check
+  if (sbBefore && !sbAfter) {
+    const broken = STAGE_PIECES.sb.find(pid => !isPieceSolved(app.cube, pid));
+    if (broken !== undefined) {
+      showToast(`⚠️ SB disturbed: ${PIECE_NAMES[broken] || 'piece'} is now unsolved!`, 'warning');
+    }
+  }
+}
+
+// --- MANUAL TURNS HANDLER ---
 function handleManualTurn(moveStr) {
-  if (isCompeteMode) {
-    if (!competeActive || competeLockInput || userFinished) return;
+  if (app.isCompeteMode) {
+    if (!app.competeActive || app.competeLockInput || app.userFinished) return;
     
     const parsed = parseMove(moveStr);
-    executeMove(userCube, parsed);
-    userRenderer.animateMove(moveStr, 160);
+    executeMove(app.userCube, parsed);
+    app.userRenderer.animateMove(moveStr, 160);
 
-    if (userCube.isSolved()) {
-      userFinished = true;
-      competeStatusBanner.innerText = 'You Solved It!';
+    if (app.userCube.isSolved()) {
+      app.userFinished = true;
+      app.statusBanner.innerText = 'You Solved It!';
     }
   } else {
-    resetPlayback();
-    const parsed = parseMove(moveStr);
-    executeMove(cube, parsed);
-    renderer.animateMove(moveStr, 200);
-    updateHUD();
+    // Clone state before move for disturbance checklist checks
+    const cubeBefore = app.cube.clone();
 
-    // Verification check for active lesson
-    if (activeLesson) {
-      if (activeLesson.verify(cube)) {
-        lessonSuccessMessage.innerText = `Excellent job completing: ${activeLesson.title}!`;
-        lessonSuccessOverlay.style.display = 'flex';
+    app.resetPlayback();
+    const parsed = parseMove(moveStr);
+    executeMove(app.cube, parsed);
+    app.renderer.animateMove(moveStr, 200);
+    app.updateHUD();
+
+    // Check block disturbances
+    checkBlockDisturbances(cubeBefore);
+
+    // Active lesson verification
+    if (app.activeLesson) {
+      app.lessonsPanel.handleLessonTurn();
+    }
+
+    // Active CMLL drill check
+    if (app.cmllPanel.activeDrillCase) {
+      app.cmllPanel.handleDrillTurn();
+    }
+
+    // Active Intuition checklist update
+    if (app.isIntuitionMode) {
+      updateIntuitionTracker();
+    }
+
+    // Free Solving splits timer
+    if (!app.activeLesson && !app.cmllPanel.activeDrillCase && !app.isIntuitionMode) {
+      handleFreeSolveTimer();
+    }
+  }
+}
+
+function handleFreeSolveTimer() {
+  if (freeSolveScrambleApplied && !app.cube.isSolved() && !freeSolveTimerRunning) {
+    // Start solve stopwatch!
+    freeSolveStartTime = Date.now();
+    freeSolveTimerRunning = true;
+    fbFinishTime = null;
+    sbFinishTime = null;
+    cmllFinishTime = null;
+    showToast("⏱️ Solve timer started on first move!", "info");
+  }
+
+  if (freeSolveTimerRunning) {
+    const stage = getRouxStage(app.cube);
+    const elapsed = Date.now() - freeSolveStartTime;
+
+    // Track stages transition split markers
+    if (stage === 'SB' && fbFinishTime === null) {
+      fbFinishTime = elapsed;
+      showToast(`⏱️ FB split: ${(fbFinishTime/1000).toFixed(2)}s`, 'info');
+    }
+    if (stage === 'CMLL' && sbFinishTime === null) {
+      sbFinishTime = elapsed;
+      showToast(`⏱️ SB split: ${((sbFinishTime - fbFinishTime)/1000).toFixed(2)}s`, 'info');
+    }
+    if (stage === 'LSE' && cmllFinishTime === null) {
+      cmllFinishTime = elapsed;
+      showToast(`⏱️ CMLL split: ${((cmllFinishTime - sbFinishTime)/1000).toFixed(2)}s`, 'info');
+    }
+
+    if (app.cube.isSolved()) {
+      freeSolveTimerRunning = false;
+      freeSolveScrambleApplied = false;
+      const lseFinishTime = elapsed;
+      
+      const fb = fbFinishTime || 0;
+      const sb = sbFinishTime ? sbFinishTime - fb : 0;
+      const cmll = cmllFinishTime ? cmllFinishTime - (sbFinishTime || 0) : 0;
+      const lse = lseFinishTime - (cmllFinishTime || sbFinishTime || fb || 0);
+
+      // Record solved splits stats
+      const record = {
+        timestamp: Date.now(),
+        scramble: app.currentScramble || 'Manual Moves Solve',
+        totalTimeMs: lseFinishTime,
+        splitTimes: { fb, sb, cmll, lse },
+        moveCount: app.cube.moveHistory.length
+      };
+
+      storage.addSolveRecord(record);
+      showToast(`🎉 Cube solved in ${(lseFinishTime/1000).toFixed(2)}s! Splits saved.`, 'info');
+      
+      // Update stats panel if active
+      if (tabStats.classList.contains('active')) {
+        app.statsPanel.render();
       }
     }
   }
 }
 
-// Keyboard binding
+// Global Key bindings
 let shiftPressed = false;
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Shift') {
     shiftPressed = true;
     return;
   }
-
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
   const key = e.key.toLowerCase();
@@ -884,7 +985,7 @@ window.addEventListener('keyup', (e) => {
   if (e.key === 'Shift') shiftPressed = false;
 });
 
-// On-screen manual keys
+// Onscreen control keys
 document.querySelectorAll('.key-btn').forEach(btn => {
   let clickCount = 0;
   let clickTimeout = null;
@@ -909,139 +1010,481 @@ document.querySelectorAll('.key-btn').forEach(btn => {
   });
 });
 
-function updateHUD() {
-  hudRouxStage.innerText = document.querySelector('.curriculum-card.active .card-title').innerText;
-  if (cube.isSolved()) {
-    hudRouxStage.innerText = 'Solved!';
+// Success Modal Lesson Next Hook
+document.getElementById('btn-lesson-next').addEventListener('click', () => {
+  document.getElementById('lesson-success-overlay').style.display = 'none';
+  const next = getNextLesson(app.activeLesson);
+  if (next) {
+    app.lessonsPanel.startLesson(next);
+  } else {
+    app.exitLesson();
+    scrambleDisplay.innerText = '🎉 All Roux curriculum lessons completed! Excellent job!';
   }
-}
+});
 
-// Compete with AI Orchestration
-btnStartCompete.addEventListener('click', async () => {
-  if (competeActive) return;
+// --- PRACTICE RECOMMENDER SYSTEM ---
+function getPracticeRecommendation() {
+  const completedLessons = storage.getCompletedLessons();
+  const incompleteLesson = LESSONS.find(l => !completedLessons.includes(l.id));
 
-  btnStartCompete.disabled = true;
-  btnScramble.disabled = true;
-  btnApplyScramble.disabled = true;
-
-  // 1. Setup cubes with scramble (either current or generated)
-  if (!currentScramble) {
-    currentScramble = generateScramble(15);
-    scrambleDisplay.innerText = currentScramble;
-  }
-
-  userCube.reset();
-  executeSequence(userCube, currentScramble);
-  userRenderer.setCubeState(userCube);
-
-  aiCube.reset();
-  executeSequence(aiCube, currentScramble);
-  aiRenderer.setCubeState(aiCube);
-
-  userFinished = false;
-  aiFinished = false;
-  competeActive = true;
-  competeLockInput = true;
-
-  // Reset display timers
-  timerUserEl.innerHTML = `Human: <span style="color: var(--neon-cyan); font-weight: bold; font-family: monospace;">0.00s</span>`;
-  timerAiEl.innerHTML = `Roux AI: <span style="color: var(--neon-green); font-weight: bold; font-family: monospace;">0.00s</span>`;
-  competeStatusBanner.innerText = 'Ready...';
-
-  // 2. Countdown sequence
-  competeCountdownOverlay.style.display = 'flex';
-  const cTexts = ['3', '2', '1', 'GO!'];
-  for (const label of cTexts) {
-    countdownText.innerText = label;
-    if (label === 'GO!') {
-      countdownText.style.color = 'var(--neon-green)';
-      countdownText.style.textShadow = '0 0 30px var(--neon-green)';
-    } else {
-      countdownText.style.color = 'var(--neon-cyan)';
-      countdownText.style.textShadow = '0 0 30px var(--neon-cyan)';
-    }
-    await new Promise(r => setTimeout(r, 1000));
-  }
-  competeCountdownOverlay.style.display = 'none';
-
-  // 3. Unlock input and start timers
-  competeLockInput = false;
-  competeStatusBanner.innerText = 'SOLVE!';
-
-  const compStartTime = performance.now();
-  let userTime = 0;
-  let aiTime = 0;
-
-  // Solve the AI cube in the background first to get the steps
-  let aiMoves = [];
-  try {
-    const aiSolveResult = solveCube(aiCube.clone());
-    aiSolveResult.steps.forEach(step => {
-      const moves = step.moves ? step.moves.split(' ').filter(Boolean) : [];
-      aiMoves = [...aiMoves, ...moves];
-    });
-  } catch (err) {
-    console.error('AI Solver failed:', err);
+  // 1. Earliest incomplete lesson
+  if (incompleteLesson) {
+    return {
+      type: 'lesson',
+      id: incompleteLesson.id,
+      text: `Practice Suggestion: Try lesson "${incompleteLesson.title}" to continue learning the curriculum.`,
+      target: incompleteLesson
+    };
   }
 
-  // Timer loop
-  competeTimerInterval = setInterval(() => {
-    const now = performance.now();
-    
-    if (!userFinished) {
-      userTime = (now - compStartTime) / 1000;
-      timerUserEl.innerHTML = `Human: <span style="color: var(--neon-cyan); font-weight: bold; font-family: monospace;">${userTime.toFixed(2)}s</span>`;
-    }
-    if (!aiFinished) {
-      aiTime = (now - compStartTime) / 1000;
-      timerAiEl.innerHTML = `Roux AI: <span style="color: var(--neon-green); font-weight: bold; font-family: monospace;">${aiTime.toFixed(2)}s</span>`;
-    }
+  // 2. Worst accuracy CMLL case
+  const stats = storage.getCMLLStats();
+  const cases = Object.keys(cmllAlgorithms);
+  let worstCaseId = null;
+  let worstAcc = 1.1;
 
-    if (userFinished && aiFinished) {
-      clearInterval(competeTimerInterval);
-      competeTimerInterval = null;
-      competeActive = false;
-      btnStartCompete.disabled = false;
-      btnScramble.disabled = false;
-      btnApplyScramble.disabled = false;
-
-      // Declare winner
-      const humanFinal = parseFloat(timerUserEl.querySelector('span').innerText);
-      const aiFinal = parseFloat(timerAiEl.querySelector('span').innerText);
-      if (humanFinal < aiFinal) {
-        competeStatusBanner.innerText = '🏆 HUMAN WINS!';
-        competeStatusBanner.style.color = 'var(--neon-cyan)';
-        competeStatusBanner.style.textShadow = '0 0 10px rgba(0, 240, 255, 0.5)';
-      } else {
-        competeStatusBanner.innerText = '🤖 AI WINS!';
-        competeStatusBanner.style.color = 'var(--neon-pink)';
-        competeStatusBanner.style.textShadow = '0 0 10px rgba(255, 0, 127, 0.5)';
+  cases.forEach(cId => {
+    const s = stats[cId];
+    if (s && s.attempts > 0) {
+      const acc = s.correct / s.attempts;
+      if (acc < worstAcc) {
+        worstAcc = acc;
+        worstCaseId = cId;
       }
     }
-  }, 10);
+  });
 
-  // AI Playback loop
-  (async () => {
-    const targetSec = parseFloat(inputAiTargetTime.value) || 10;
-    const totalMoves = aiMoves.length;
-    
-    // Each move interval is calculated to solve exactly in target seconds
-    const intervalMs = totalMoves > 0 ? (targetSec / totalMoves) * 1000 : 100;
-    const animMs = Math.max(50, intervalMs * 0.8); // 80% animation, 20% delay
+  if (worstCaseId) {
+    const value = cmllAlgorithms[worstCaseId];
+    return {
+      type: 'cmll',
+      id: worstCaseId,
+      text: `Practice Suggestion: Drill case "${value.name}" (${Math.round(worstAcc * 100)}% accuracy) to improve your weak spots.`,
+      target: worstCaseId
+    };
+  }
 
-    for (let i = 0; i < totalMoves; i++) {
-      if (!competeActive) break; // mode exited
-      const move = aiMoves[i];
-      executeMove(aiCube, parseMove(move));
-      await aiRenderer.animateMove(move, animMs);
-      
-      const restDelay = Math.max(10, intervalMs - animMs);
-      await new Promise(r => setTimeout(r, restDelay));
-    }
-    
-    aiFinished = true;
-    if (totalMoves === 0) {
-      timerAiEl.innerHTML = `Roux AI: <span style="color: var(--neon-green); font-weight: bold; font-family: monospace;">0.00s</span>`;
-    }
-  })();
+  // 3. Fallback: Full solve
+  return {
+    type: 'solve',
+    text: "Practice Suggestion: You've completed all lessons and mastered your CMLL cases! We recommend running a timed full solve."
+  };
+}
+
+document.getElementById('btn-recommend-practice').addEventListener('click', () => {
+  const rec = getPracticeRecommendation();
+  showToast(rec.text, 'info');
+
+  if (rec.type === 'lesson') {
+    tabLessons.click();
+    setTimeout(() => {
+      app.lessonsPanel.startLesson(rec.target);
+    }, 50);
+  } else if (rec.type === 'cmll') {
+    tabCurriculum.click();
+    setTimeout(() => {
+      subTabCmll.click();
+      setTimeout(() => {
+        app.cmllPanel.startCMLLDrill(rec.target);
+      }, 50);
+    }, 50);
+  } else if (rec.type === 'solve') {
+    tabCurriculum.click();
+    setTimeout(() => {
+      subTabStages.click();
+      btnScramble.click();
+    }, 50);
+  }
 });
+
+// --- SOLVE RECONSTRUCTION IMPORT ---
+const reconModal = document.getElementById('reconstruction-modal');
+const btnImportRecon = document.getElementById('btn-import-reconstruction');
+const btnReconCancel = document.getElementById('btn-reconstruct-cancel');
+const btnReconSubmit = document.getElementById('btn-reconstruct-submit');
+const reconInput = document.getElementById('reconstruction-input');
+
+function importReconstruction(text) {
+  let scramble = '';
+  let solution = '';
+
+  const scrambleMatch = text.match(/scramble:\s*(.+)/i);
+  const solutionMatch = text.match(/(?:solution|moves):\s*(.+)/i);
+
+  if (scrambleMatch) {
+    scramble = scrambleMatch[1].trim();
+  }
+  if (solutionMatch) {
+    solution = solutionMatch[1].trim();
+  }
+
+  // Fallback by slash '/'
+  if (!scramble || !solution) {
+    const parts = text.split('/');
+    if (parts.length >= 2) {
+      scramble = parts[0].replace(/scramble:/i, '').trim();
+      solution = parts[1].replace(/solution:|moves:/i, '').trim();
+    }
+  }
+
+  // Fallback by newlines
+  if (!scramble || !solution) {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length >= 2) {
+      scramble = lines[0];
+      solution = lines[1];
+    }
+  }
+
+  if (!scramble || !solution) {
+    throw new Error('Reconstruction format invalid. Please specify a Scramble and a Solution.');
+  }
+
+  // Segment moves into Roux stages by replaying
+  const tempCube = new CubeState();
+  executeSequence(tempCube, scramble);
+  
+  const moves = solution.split(/\s+/).filter(Boolean);
+  const steps = [
+    { name: 'First Block (FB)', stage: 'FB', moves: [], explanation: 'Solve the First Block on the Left side.' },
+    { name: 'Second Block (SB)', stage: 'SB', moves: [], explanation: 'Solve the Second Block on the Right side.' },
+    { name: 'CMLL', stage: 'CMLL', moves: [], explanation: 'Solve U-layer corners.' },
+    { name: 'Last Six Edges (LSE)', stage: 'LSE', moves: [], explanation: 'Solve remaining six edges and centers.' }
+  ];
+
+  for (const mStr of moves) {
+    const stage = getRouxStage(tempCube);
+    executeMove(tempCube, parseMove(mStr));
+
+    if (stage === 'FB') {
+      steps[0].moves.push(mStr);
+    } else if (stage === 'SB') {
+      steps[1].moves.push(mStr);
+    } else if (stage === 'CMLL') {
+      steps[2].moves.push(mStr);
+    } else {
+      steps[3].moves.push(mStr);
+    }
+  }
+
+  const finalSteps = steps.map(s => ({
+    ...s,
+    moves: s.moves.join(' ')
+  })).filter(s => s.moves.length > 0);
+
+  if (finalSteps.length === 0) {
+    throw new Error('No moves found in solution.');
+  }
+
+  // Load state
+  app.resetPlayback();
+  app.exitLesson();
+  exitIntuitionMode();
+  exitTracingMode();
+
+  app.currentScramble = scramble;
+  scrambleDisplay.innerText = scramble;
+
+  app.cube.reset();
+  executeSequence(app.cube, scramble);
+  app.renderer.setCubeState(app.cube);
+
+  playbackStartState = app.cube.clone();
+  currentSolve = finalSteps;
+  flatSolveMoves = [];
+
+  currentSolve.forEach((step, stepIdx) => {
+    const stepMoves = step.moves ? step.moves.split(' ').filter(Boolean) : [];
+    stepMoves.forEach(mStr => {
+      flatSolveMoves.push({
+        raw: mStr,
+        stepName: step.name,
+        stepIndex: stepIdx + 1,
+        totalSteps: currentSolve.length
+      });
+    });
+  });
+
+  hudSolveLen.innerText = `${flatSolveMoves.length} moves`;
+  setupPlayback();
+}
+
+btnImportRecon.addEventListener('click', () => {
+  reconInput.value = '';
+  reconModal.style.display = 'flex';
+  setTimeout(() => reconModal.style.opacity = '1', 10);
+});
+
+const closeReconModal = () => {
+  reconModal.style.opacity = '0';
+  setTimeout(() => reconModal.style.display = 'none', 300);
+};
+
+btnReconCancel.addEventListener('click', closeReconModal);
+
+btnReconSubmit.addEventListener('click', () => {
+  const text = reconInput.value.trim();
+  if (!text) {
+    showToast('Please paste a solve reconstruction!', 'warning');
+    return;
+  }
+  try {
+    importReconstruction(text);
+    closeReconModal();
+    showToast('Reconstruction imported successfully!', 'info');
+  } catch (err) {
+    showToast(err.message, 'warning');
+  }
+});
+
+
+// --- STICKER NET SCRAMBLE INTERFACE ---
+const stickersModal = document.getElementById('stickers-modal');
+const btnImportStickers = document.getElementById('btn-import-stickers');
+const btnStickersCancel = document.getElementById('btn-stickers-cancel');
+const btnStickersSubmit = document.getElementById('btn-stickers-submit');
+const btnStickersReset = document.getElementById('btn-stickers-reset');
+const stickerNetGrid = document.getElementById('sticker-net-grid');
+
+let activePaletteColor = 'yellow';
+
+// Setup palette selector
+document.querySelectorAll('.palette-color').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.palette-color').forEach(b => {
+      b.classList.remove('selected');
+      b.style.border = '1px solid rgba(255,255,255,0.2)';
+    });
+    
+    btn.classList.add('selected');
+    btn.style.border = '2px solid white';
+    activePaletteColor = btn.dataset.color;
+  });
+});
+
+const FACE_COLOR_MAP = {
+  yellow: '#ffd200',
+  white: '#ffffff',
+  green: '#00e676',
+  blue: '#2979ff',
+  orange: '#ff9100',
+  red: '#ff1744'
+};
+
+function renderStickerNet() {
+  const faceLayout = [
+    [null, 'u', null, null],
+    ['l', 'f', 'r', 'b'],
+    [null, 'd', null, null]
+  ];
+
+  let html = `<div style="display: grid; grid-template-columns: repeat(4, 85px); grid-template-rows: repeat(3, 85px); gap: 10px;">`;
+
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 4; c++) {
+      const face = faceLayout[r][c];
+      if (face) {
+        // Render 3x3 face
+        html += `
+          <div class="net-face" data-face="${face}" style="display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 3px; width: 85px; height: 85px; border: 1px solid rgba(255,255,255,0.15); padding: 4px; background: rgba(8,10,18,0.6); border-radius: 6px;">
+            ${Array(9).fill(0).map((_, idx) => {
+              const isCenter = idx === 4;
+              const defaultColor = getFaceDefaultColor(face);
+              return `
+                <div class="net-sticker" data-face="${face}" data-index="${idx}" style="background: ${FACE_COLOR_MAP[defaultColor]}; border-radius: 3px; cursor: ${isCenter ? 'not-allowed' : 'pointer'};" data-color="${defaultColor}"></div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      } else {
+        html += `<div></div>`;
+      }
+    }
+  }
+  html += `</div>`;
+  stickerNetGrid.innerHTML = html;
+
+  // Bind sticker click events
+  stickerNetGrid.querySelectorAll('.net-sticker').forEach(sticker => {
+    sticker.addEventListener('click', () => {
+      const index = parseInt(sticker.dataset.index, 10);
+      if (index === 4) return; // centers are locked
+      
+      sticker.style.background = FACE_COLOR_MAP[activePaletteColor];
+      sticker.dataset.color = activePaletteColor;
+    });
+  });
+}
+
+function getFaceDefaultColor(face) {
+  const map = { u: 'yellow', d: 'white', f: 'green', b: 'blue', l: 'orange', r: 'red' };
+  return map[face];
+}
+
+btnImportStickers.addEventListener('click', () => {
+  renderStickerNet();
+  stickersModal.style.display = 'flex';
+  setTimeout(() => stickersModal.style.opacity = '1', 10);
+});
+
+const closeStickersModal = () => {
+  stickersModal.style.opacity = '0';
+  setTimeout(() => stickersModal.style.display = 'none', 300);
+};
+
+btnStickersCancel.addEventListener('click', closeStickersModal);
+
+btnStickersReset.addEventListener('click', () => {
+  renderStickerNet();
+});
+
+btnStickersSubmit.addEventListener('click', () => {
+  // Collect state
+  const stickerColors = { u: [], d: [], f: [], b: [], l: [], r: [] };
+  stickerNetGrid.querySelectorAll('.net-sticker').forEach(sticker => {
+    const face = sticker.dataset.face;
+    const color = sticker.dataset.color;
+    stickerColors[face].push(color);
+  });
+
+  try {
+    app.exitLesson();
+    exitIntuitionMode();
+    exitTracingMode();
+    app.resetPlayback();
+    
+    app.cube.setStickersState(stickerColors);
+    app.renderer.setCubeState(app.cube);
+    app.currentScramble = 'Sticker Net Scramble';
+    scrambleDisplay.innerText = 'Sticker Net Scramble Loaded';
+    
+    closeStickersModal();
+    showToast('Sticker Net scramble loaded successfully!', 'info');
+  } catch (err) {
+    showToast(err.message, 'warning');
+  }
+});
+
+
+// --- SPATIAL TRACING MODE ---
+let isTracingMode = false;
+let tracingTargetPiece = 'DL';
+const tracingTargetList = ['DL', 'UR', 'UFL', 'UL', 'FL', 'UBR'];
+
+const tracingHud = document.getElementById('tracing-hud');
+const btnTracingExit = document.getElementById('btn-tracing-exit');
+const tracingTargetSpan = document.getElementById('tracing-target-piece');
+
+document.getElementById('btn-toggle-tracing').addEventListener('click', () => {
+  if (isTracingMode) {
+    exitTracingMode();
+  } else {
+    startTracingMode();
+  }
+});
+
+btnTracingExit.addEventListener('click', () => {
+  exitTracingMode();
+});
+
+function startTracingMode() {
+  app.exitLesson();
+  exitIntuitionMode();
+  app.resetPlayback();
+
+  isTracingMode = true;
+  const btnToggleTracing = document.getElementById('btn-toggle-tracing');
+  btnToggleTracing.innerText = '👁️ Tracing Mode: ON';
+  btnToggleTracing.style.borderColor = 'var(--neon-green)';
+  btnToggleTracing.style.boxShadow = '0 0 10px rgba(57, 255, 20, 0.4)';
+  
+  // Select random target piece
+  tracingTargetPiece = tracingTargetList[Math.floor(Math.random() * tracingTargetList.length)];
+  tracingTargetSpan.innerText = getPieceDisplayName(tracingTargetPiece);
+  
+  // Blur 3D view
+  container.style.filter = 'blur(15px)';
+  tracingHud.style.display = 'flex';
+}
+
+function exitTracingMode() {
+  isTracingMode = false;
+  const btnToggleTracing = document.getElementById('btn-toggle-tracing');
+  btnToggleTracing.innerText = '👁️ Tracing Mode: OFF';
+  btnToggleTracing.style.borderColor = '';
+  btnToggleTracing.style.boxShadow = '';
+  container.style.filter = '';
+  tracingHud.style.display = 'none';
+}
+
+function getPieceDisplayName(pieceCode) {
+  const map = {
+    'DL': 'DL edge (orange/white)',
+    'UR': 'UR edge (red/yellow)',
+    'UL': 'UL edge (orange/yellow)',
+    'FL': 'FL edge (orange/green)',
+    'UFL': 'UFL corner (yellow/green/orange)',
+    'UBR': 'UBR corner (yellow/blue/red)'
+  };
+  return map[pieceCode] || pieceCode;
+}
+
+function getTargetActualCoord(targetName) {
+  let targetPiece = null;
+  if (targetName === 'DL') {
+    targetPiece = app.cube.cubies.find(c => Object.values(c.colors).filter(Boolean).length === 2 && Object.values(c.colors).includes('white') && Object.values(c.colors).includes('orange'));
+  } else if (targetName === 'UR') {
+    targetPiece = app.cube.cubies.find(c => Object.values(c.colors).filter(Boolean).length === 2 && Object.values(c.colors).includes('yellow') && Object.values(c.colors).includes('red'));
+  } else if (targetName === 'UL') {
+    targetPiece = app.cube.cubies.find(c => Object.values(c.colors).filter(Boolean).length === 2 && Object.values(c.colors).includes('yellow') && Object.values(c.colors).includes('orange'));
+  } else if (targetName === 'FL') {
+    targetPiece = app.cube.cubies.find(c => Object.values(c.colors).filter(Boolean).length === 2 && Object.values(c.colors).includes('green') && Object.values(c.colors).includes('orange'));
+  } else if (targetName === 'UFL') {
+    targetPiece = app.cube.cubies.find(c => Object.values(c.colors).filter(Boolean).length === 3 && Object.values(c.colors).includes('yellow') && Object.values(c.colors).includes('green') && Object.values(c.colors).includes('orange'));
+  } else if (targetName === 'UBR') {
+    targetPiece = app.cube.cubies.find(c => Object.values(c.colors).filter(Boolean).length === 3 && Object.values(c.colors).includes('yellow') && Object.values(c.colors).includes('blue') && Object.values(c.colors).includes('red'));
+  }
+  
+  if (!targetPiece) return '';
+  return getCubieCoord(targetPiece.x, targetPiece.y, targetPiece.z);
+}
+
+function getCubieCoord(x, y, z) {
+  if (Math.abs(x) + Math.abs(y) + Math.abs(z) === 3) {
+    let fStr = y === 1 ? 'U' : 'D';
+    fStr += z === 1 ? 'F' : 'B';
+    fStr += x === -1 ? 'L' : 'R';
+    return fStr;
+  } else if (Math.abs(x) + Math.abs(y) + Math.abs(z) === 2) {
+    if (y !== 0) {
+      let res = y === 1 ? 'U' : 'D';
+      if (z !== 0) res += z === 1 ? 'F' : 'B';
+      if (x !== 0) res += x === -1 ? 'L' : 'R';
+      return res;
+    } else {
+      let res = z === 1 ? 'F' : 'B';
+      res += x === -1 ? 'L' : 'R';
+      return res;
+    }
+  }
+  return '';
+}
+
+// Bind coordinates guess buttons
+tracingHud.querySelectorAll('.btn-coord').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const guessedCoord = btn.dataset.coord;
+    const actualCoord = getTargetActualCoord(tracingTargetPiece);
+    
+    if (guessedCoord === actualCoord) {
+      showToast(`🎉 Correct! You successfully traced the ${tracingTargetPiece} to ${actualCoord}!`, 'info');
+      container.style.filter = '';
+      setTimeout(() => {
+        exitTracingMode();
+      }, 2500);
+    } else {
+      showToast(`❌ Incorrect. The ${tracingTargetPiece} is at ${actualCoord}, not ${guessedCoord}.`, 'warning');
+    }
+  });
+});
+
