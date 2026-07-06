@@ -2,12 +2,264 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>hotel-ui</title>
+    <title>Roux Method Cyber Trainer</title>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <div id="app">
+      <header>
+        <div class="logo-container">
+          <span class="logo-text">ROUX CYBER SOLVER</span>
+          <span class="logo-badge">MVP</span>
+        </div>
+        <div class="header-status">
+          <div class="status-item">Solve Length: <span class="status-val" id="hud-solve-len">--</span></div>
+          <div class="status-item">Roux Stage: <span class="status-val" id="hud-roux-stage">Idle</span></div>
+        </div>
+      </header>
+
+      <main class="dashboard">
+        <!-- Left Panel: Curriculum / Interactive Lessons Guides -->
+        <section class="glass-panel" id="panel-curriculum">
+          <div class="panel-header" style="flex-direction: row; gap: 10px; padding: 10px 15px; border-bottom: 1px solid var(--panel-border);">
+            <button class="btn-tab active" id="tab-curriculum" style="flex: 1; padding: 8px; border-radius: 6px; background: rgba(0,240,255,0.1); border: 1px solid var(--neon-cyan); color: var(--neon-cyan); font-size: 0.8rem; font-weight: bold; cursor: pointer; text-transform: uppercase;">Curriculum</button>
+            <button class="btn-tab" id="tab-lessons" style="flex: 1; padding: 8px; border-radius: 6px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.1); color: var(--text-secondary); font-size: 0.8rem; font-weight: bold; cursor: pointer; text-transform: uppercase;">Lessons</button>
+          </div>
+
+          <!-- Curriculum Content Tab -->
+          <div class="panel-body" id="curriculum-content">
+            <div class="curriculum-list">
+              <div class="curriculum-card active" data-stage="fb">
+                <div class="card-header">
+                  <span class="card-step">Step 1</span>
+                </div>
+                <h3 class="card-title">First Block (FB)</h3>
+                <p class="card-desc">Build a 1x2x3 block on the left side of the cube (standard fixed L face center).</p>
+                <button class="isolate-btn active" data-stage="fb">Isolate Pieces</button>
+              </div>
+
+              <div class="curriculum-card" data-stage="sb">
+                <div class="card-header">
+                  <span class="card-step">Step 2</span>
+                </div>
+                <h3 class="card-title">Second Block (SB)</h3>
+                <p class="card-desc">Build a 1x2x3 block on the right side of the cube (standard fixed R face center).</p>
+                <button class="isolate-btn" data-stage="sb">Isolate Pieces</button>
+              </div>
+
+              <div class="curriculum-card" data-stage="cmll">
+                <div class="card-header">
+                  <span class="card-step">Step 3</span>
+                </div>
+                <h3 class="card-title">CMLL</h3>
+                <p class="card-desc">Orient and permute the four top corners without disturbing the bottom two blocks.</p>
+                <button class="isolate-btn" data-stage="cmll">Isolate Pieces</button>
+              </div>
+
+              <div class="curriculum-card" data-stage="lse">
+                <div class="card-header">
+                  <span class="card-step">Step 4</span>
+                </div>
+                <h3 class="card-title">Last Six Edges (LSE)</h3>
+                <p class="card-desc">Solve the remaining six edges (UR, UL, UB, UF, DB, DF) using only M and U moves.</p>
+                <button class="isolate-btn" data-stage="lse">Isolate Pieces</button>
+              </div>
+            </div>
+
+            <div class="curriculum-info" id="stage-info-box">
+              <div class="info-title">First Block (FB) Solver Target</div>
+              <div>Solve DL (Down-Left) edge, then pair BL (Back-Left) edge with DBL corner, and FL (Front-Left) edge with DFL corner.</div>
+            </div>
+          </div>
+
+          <!-- Lessons Content Tab (Hidden by default) -->
+          <div class="panel-body" id="lessons-content" style="display: none; flex-direction: column; overflow-y: auto; gap: 15px; padding: 15px;">
+            <div class="curriculum-list" id="lessons-list" style="display: flex; flex-direction: column; gap: 12px;">
+              <!-- Lesson cards populated dynamically -->
+            </div>
+          </div>
+        </section>
+
+        <!-- Center Panel: 3D view (Normal Mode) -->
+        <section class="center-viewport" id="viewport-normal">
+          <div class="solve-overlay" id="solve-overlay">
+            <div class="solve-info">
+              <span class="solve-status-title" id="overlay-step-name">Solving Scramble</span>
+              <span class="solve-status-desc" id="overlay-step-moves">Next: M2 U R'</span>
+            </div>
+            <span class="solve-badge" id="overlay-solve-badge">Step 1/9</span>
+          </div>
+
+          <div class="three-container" id="three-container"></div>
+
+          <!-- Lesson Instructions HUD -->
+          <div class="lesson-hud-container" id="lesson-hud" style="display: none; position: absolute; top: 20px; left: 20px; z-index: 5; background: rgba(8,10,18,0.85); backdrop-filter: blur(10px); border: 1px solid var(--neon-green); border-radius: 8px; padding: 12px 18px; flex-direction: column; gap: 6px; box-shadow: 0 0 15px rgba(57,255,20,0.2); max-width: 250px;">
+            <span style="font-size: 0.7rem; color: var(--neon-green); text-transform: uppercase; font-weight: 600; letter-spacing: 1px;">Active Lesson</span>
+            <span id="lesson-hud-title" style="font-size: 0.95rem; font-weight: bold; color: white;">Lesson 1: DL Edge</span>
+            <p id="lesson-hud-desc" style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.3;">Solve the DL edge to its solved slot.</p>
+            <div style="font-size: 0.75rem; border-top: 1px solid rgba(57,255,20,0.2); padding-top: 6px; margin-top: 4px;">
+              <span style="color: var(--neon-cyan); font-weight: bold;">Hint:</span> <span id="lesson-hud-hint" style="color: var(--text-secondary);">Try: U' L2</span>
+            </div>
+            <button class="btn-secondary" id="btn-lesson-exit" style="padding: 4px 8px; font-size: 0.7rem; align-self: flex-end; margin-top: 6px; border-color: var(--neon-pink); color: var(--neon-pink); width: auto; height: auto;">Exit Lesson</button>
+          </div>
+
+          <!-- Lesson Success Overlay -->
+          <div id="lesson-success-overlay" style="display: none; position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(5,7,15,0.9); backdrop-filter: blur(8px); z-index: 10; align-items:center; justify-content:center; flex-direction:column; gap: 15px;">
+            <span style="font-size: 4rem; text-shadow: 0 0 20px rgba(57,255,20,0.5);">🎉</span>
+            <span style="font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 800; color: var(--neon-green); text-shadow: 0 0 15px var(--neon-green); text-transform: uppercase; letter-spacing: 2px;">Lesson Complete!</span>
+            <span id="lesson-success-message" style="font-size: 1rem; color: var(--text-secondary); text-align: center; max-width: 300px; line-height: 1.4;">Excellent job solving the DL edge!</span>
+            <button class="btn-primary" id="btn-lesson-next" style="padding: 8px 24px; font-size: 0.9rem; width: auto; height: auto;">Next Lesson</button>
+          </div>
+
+          <div class="viewport-hud">
+            <button class="hud-btn" id="hud-btn-reset-cam" title="Reset Camera View">👁️</button>
+            <button class="hud-btn" id="hud-btn-isolation" title="Toggle Isolation Glow">💡</button>
+          </div>
+        </section>
+
+        <!-- Center Panel: Dual 3D view (AI Competition Mode) -->
+        <section class="center-viewport" id="viewport-compete" style="display: none; flex-direction: column;">
+          <div class="compete-header" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background: rgba(8, 10, 18, 0.9); border-bottom: 1px solid var(--panel-border);">
+            <div class="compete-timer" id="timer-user" style="font-size: 1.1rem; letter-spacing: 1px;">Human: <span style="color: var(--neon-cyan); font-weight: bold; font-family: monospace;">0.00s</span></div>
+            <div class="compete-status" id="compete-status-banner" style="font-weight: bold; text-transform: uppercase; color: var(--neon-pink); letter-spacing: 2px; text-shadow: 0 0 10px rgba(255, 0, 127, 0.5);">Ready!</div>
+            <div class="compete-timer" id="timer-ai" style="font-size: 1.1rem; letter-spacing: 1px;">Roux AI: <span style="color: var(--neon-green); font-weight: bold; font-family: monospace;">0.00s</span></div>
+          </div>
+          
+          <div class="split-viewport-container" style="flex: 1; display: flex; overflow: hidden; position: relative;">
+            <!-- Countdown Overlay -->
+            <div id="compete-countdown-overlay" style="display: none; position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(5,7,15,0.9); backdrop-filter: blur(8px); z-index: 10; align-items:center; justify-content:center; flex-direction:column; gap: 10px;">
+              <span id="countdown-text" style="font-family: 'Space Grotesk', sans-serif; font-size: 6rem; font-weight: 800; color: var(--neon-cyan); text-shadow: 0 0 30px var(--neon-cyan);">3</span>
+              <span style="font-size: 1.2rem; color: var(--text-secondary); letter-spacing: 2px; text-transform: uppercase;">Get Ready</span>
+            </div>
+
+            <!-- Left split (User) -->
+            <div class="split-pane" style="flex: 1; border-right: 1px solid var(--panel-border); position: relative; display: flex; flex-direction: column;">
+              <div class="pane-label" style="position: absolute; top: 15px; left: 20px; z-index: 2; padding: 4px 10px; border-radius: 4px; background: rgba(0,240,255,0.1); border: 1px solid var(--neon-cyan); color: var(--neon-cyan); font-size: 0.8rem; font-weight: bold; letter-spacing: 1px;">YOU (LEFT SIDE)</div>
+              <div id="three-container-user" style="flex: 1; width:100%; height:100%;"></div>
+            </div>
+
+            <!-- Right split (AI) -->
+            <div class="split-pane" style="flex: 1; position: relative; display: flex; flex-direction: column;">
+              <div class="pane-label" style="position: absolute; top: 15px; left: 20px; z-index: 2; padding: 4px 10px; border-radius: 4px; background: rgba(57,255,20,0.1); border: 1px solid var(--neon-green); color: var(--neon-green); font-size: 0.8rem; font-weight: bold; letter-spacing: 1px;">ROUX AI</div>
+              <div id="three-container-ai" style="flex: 1; width:100%; height:100%;"></div>
+            </div>
+          </div>
+
+          <div class="compete-controls" style="display: flex; gap: 15px; justify-content: center; align-items: center; padding: 12px; background: rgba(8, 10, 18, 0.9); border-top: 1px solid var(--panel-border);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <label for="input-ai-target-time" style="font-size: 0.85rem; color: var(--text-secondary);">AI Playback Time:</label>
+              <input type="number" id="input-ai-target-time" value="10" min="2" max="60" style="width: 65px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--panel-border); background: rgba(0,0,0,0.3); color: white; text-align: center; font-family: monospace; font-size: 0.9rem;" />
+              <span style="font-size: 0.85rem; color: var(--text-secondary);">seconds</span>
+            </div>
+            <button class="btn-primary" id="btn-start-compete" style="padding: 6px 20px; margin: 0; min-width: auto; height: auto; font-size: 0.9rem;">Start Compete</button>
+          </div>
+        </section>
+
+        <!-- Right Panel: Scramble & Solver Control Sidebar -->
+        <section class="glass-panel control-sidebar">
+          <div class="panel-header">
+            <h2>Controls & Solver</h2>
+          </div>
+          <div class="panel-body" style="display: flex; flex-direction: column; gap: 15px;">
+            
+            <button class="btn-secondary" id="btn-toggle-compete" style="border-color: var(--neon-pink); color: var(--neon-pink); text-shadow: 0 0 5px rgba(255, 0, 127, 0.3);">🤖 Compete with AI Mode</button>
+            
+            <button class="btn-primary" id="btn-solve">Solve Cube</button>
+            
+            <div class="actions-row">
+              <button class="btn-secondary" id="btn-scramble">Scramble</button>
+              <button class="btn-secondary" id="btn-reset">Reset Cube</button>
+            </div>
+
+            <!-- Custom Scramble Field -->
+            <div class="control-group" style="display: flex; flex-direction: column; gap: 5px;">
+              <label class="control-label" for="custom-scramble-input" style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Custom Scramble</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="text" id="custom-scramble-input" placeholder="e.g. R U R' U'" style="flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--panel-border); background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem;" />
+                <button class="btn-secondary" id="btn-apply-scramble" style="padding: 6px 12px; margin: 0; min-width: auto; font-size: 0.85rem;">Apply</button>
+              </div>
+            </div>
+
+            <!-- Playback Speed -->
+            <div class="control-group" style="display: flex; flex-direction: column; gap: 5px;">
+              <label class="control-label" for="select-playback-speed" style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Playback Speed</label>
+              <select id="select-playback-speed" style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--panel-border); background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem;">
+                <option value="0.25">0.25x (Slow)</option>
+                <option value="0.5">0.5x</option>
+                <option value="1" selected>1.0x (Normal)</option>
+                <option value="2">2.0x</option>
+                <option value="4">4.0x (Fast)</option>
+              </select>
+            </div>
+
+            <!-- Roux Step Selection -->
+            <div class="control-group" style="display: flex; flex-direction: column; gap: 5px;">
+              <span class="control-label" style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Roux Solver Stages</span>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.8rem; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px; border: 1px solid var(--panel-border);">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="chk-stage-fb" checked /> FB (Step 1)
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="chk-stage-sb" checked /> SB (Step 2)
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="chk-stage-cmll" checked /> CMLL (Step 3)
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="chk-stage-lse" checked /> LSE (Step 4)
+                </label>
+              </div>
+            </div>
+
+            <div class="scramble-box" id="scramble-display">
+              Scramble sequence will appear here
+            </div>
+
+            <!-- Timeline Scrubber -->
+            <div class="timeline-section">
+              <div class="timeline-controls">
+                <span class="kb-title">Solve Playback</span>
+                <div class="play-controls">
+                  <button class="hud-btn" style="width:30px; height:30px;" id="btn-play-prev" title="Previous Step">⏮️</button>
+                  <button class="hud-btn" style="width:35px; height:35px;" id="btn-play-toggle" title="Play/Pause Solve">▶️</button>
+                  <button class="hud-btn" style="width:30px; height:30px;" id="btn-play-next" title="Next Step">⏭️</button>
+                </div>
+              </div>
+
+              <div class="scrubber-container">
+                <input type="range" class="scrubber-slider" id="scrubber-slider" min="0" max="0" value="0" disabled />
+                <span class="scrubber-text" id="scrubber-text">0 / 0</span>
+              </div>
+            </div>
+
+            <!-- Active Solve Step Log -->
+            <div class="step-list" id="step-log">
+              <!-- Solve moves breakdown list will populate dynamically -->
+            </div>
+
+            <!-- Keyboard Manual Interface -->
+            <div class="keyboard-overlay">
+              <span class="kb-title">Manual Face Rotation Keys</span>
+              <div class="keyboard-grid">
+                <button class="key-btn" data-move="R">R</button>
+                <button class="key-btn" data-move="L">L</button>
+                <button class="key-btn" data-move="U">U</button>
+                <button class="key-btn" data-move="D">D</button>
+                <button class="key-btn" data-move="F">F</button>
+                <button class="key-btn" data-move="B">B</button>
+              </div>
+              <div class="keyboard-grid" style="grid-template-columns: 1fr;">
+                <button class="key-btn" data-move="M">M</button>
+              </div>
+              <div style="font-size:0.75rem; color:var(--text-secondary); text-align:center; margin-top:5px;">
+                Hold <kbd style="color:var(--neon-cyan)">Shift</kbd> for Prime turns (') | Double click for double turns (2)
+              </div>
+            </div>
+
+          </div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>
