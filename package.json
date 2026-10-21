@@ -1,6 +1,6 @@
 {
-  "name": "project",
-  "version": "0.0.0",
+  "name": "ruvyqo",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,5 +15,6 @@
   },
   "dependencies": {
     "three": "^0.185.1"
-  }
+  },
+  "description": "Ruvyqo \u2014 Next-Generation 3D Speedsolving Trainer & Algorithmic Roux Engine"
 }

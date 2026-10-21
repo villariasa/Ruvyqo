@@ -7,7 +7,7 @@ export class OnboardingModal {
     this.currentSlide = 0;
     this.slides = [
       {
-        title: "Welcome to Roux Cyber Trainer!",
+        title: "Welcome to Ruvyqo!",
         content: `
           <p style="margin-bottom: 12px; line-height: 1.4;">Roux is a modern Rubik's Cube solving method optimized for speed, logic, and efficiency. Unlike standard CFOP which is rigid and algorithm-heavy, Roux is intuitive and M-slice heavy.</p>
           <div style="display: flex; justify-content: space-around; gap: 10px; margin-top: 15px;">

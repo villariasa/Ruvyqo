@@ -1,4 +1,4 @@
-// Main Orchestration Controller for Roux Method Cyber Solver & Trainer
+// Main Orchestration Controller for Ruvyqo — 3D Roux Speedsolver & Trainer
 import './style.css';
 import { CubeState } from './engine/cube-state.js';
 import { generateScramble } from './engine/scramble-generator.js';
