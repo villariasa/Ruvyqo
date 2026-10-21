@@ -1,4 +1,4 @@
-# Roux Cyber Trainer — Interactive 3D Speedsolving Engine
+# <img src="icons/sparkles.svg" width="28" height="28" align="center" /> Roux Cyber Trainer — Interactive 3D Speedsolving Engine
 
 <div align="center">
 
@@ -17,30 +17,30 @@ Master block-building intuition, pattern recognition for all 42 CMLL algorithms,
 
 ---
 
-## 🧩 Why Roux Cyber Trainer?
+## <img src="icons/cpu-chip.svg" width="22" height="22" align="center" /> Why Roux Cyber Trainer?
 
 Most speedcubing applications focus strictly on timer functions or linear CFOP algorithms. The **Roux Method** requires deep intuition, freedom of block-building, and precise corner orientation without destroying lateral blocks.
 
 Roux Cyber Trainer breaks speedcubing down into intuitive, structured mastery layers:
 
-1. **First Block (FB)** — 1x2x3 block-building mechanics on the left lateral layer with zero move restrictions.
-2. **Second Block (SB)** — Non-destructive right 1x2x3 block construction leveraging the free M-slice.
-3. **CMLL Mastery** — Pattern recognition and algorithmic execution for all **42 CMLL cases** across 7 families (O, H, Pi, U, T, S, AS) without disturbing F2B.
-4. **Last Six Edges (LSE / Step 4)** — Edge Orientation (EO), UL/UR edge placement, and M/U-slice parity resolution.
+1. <img src="icons/cube.svg" width="16" height="16" align="center" /> **First Block (FB)** — 1x2x3 block-building mechanics on the left lateral layer with zero move restrictions.
+2. <img src="icons/cube.svg" width="16" height="16" align="center" /> **Second Block (SB)** — Non-destructive right 1x2x3 block construction leveraging the free M-slice.
+3. <img src="icons/bolt.svg" width="16" height="16" align="center" /> **CMLL Mastery** — Pattern recognition and algorithmic execution for all **42 CMLL cases** across 7 families (O, H, Pi, U, T, S, AS) without disturbing F2B.
+4. <img src="icons/sparkles.svg" width="16" height="16" align="center" /> **Last Six Edges (LSE / Step 4)** — Edge Orientation (EO), UL/UR edge placement, and M/U-slice parity resolution.
 
 ---
 
-## 🌟 Core Features
+## <img src="icons/bolt.svg" width="22" height="22" align="center" /> Core Features
 
-- **Interactive 3D WebGL Canvas:** Smooth 60 FPS viewport rendering powered by Three.js with orbit controls, realistic specular lighting, and fluid piece rotations.
-- **Roux Step Recognition:** Automated heuristics (`stage-recognizer.js`) detecting solve completion percentage, block invariants, and misoriented edges in real time.
-- **Staged Algorithmic Solver:** Multi-phase automated Roux solver featuring step scrubbing, replay controls, and detailed move notation breakdowns.
-- **Human vs AI Competition Mode:** Duel mode featuring real-time split timers, AI ghost playback, and comparative move-efficiency analysis.
-- **Zero-Dependency Lightweight Build:** Built on native ES modules and Vite for sub-second startup times.
+- <img src="icons/eye.svg" width="16" height="16" align="center" /> **Interactive 3D WebGL Canvas** — Smooth 60 FPS viewport rendering powered by Three.js with orbit controls, realistic specular lighting, and fluid piece rotations.
+- <img src="icons/check-badge.svg" width="16" height="16" align="center" /> **Roux Step Recognition** — Automated heuristics (`stage-recognizer.js`) detecting solve completion percentage, block invariants, and misoriented edges in real time.
+- <img src="icons/command-line.svg" width="16" height="16" align="center" /> **Staged Algorithmic Solver** — Multi-phase automated Roux solver featuring step scrubbing, replay controls, and detailed move notation breakdowns.
+- <img src="icons/user-group.svg" width="16" height="16" align="center" /> **Human vs AI Competition Mode** — Duel mode featuring real-time split timers, AI ghost playback, and comparative move-efficiency analysis.
+- <img src="icons/bolt.svg" width="16" height="16" align="center" /> **Zero-Dependency Lightweight Build** — Built on native ES modules and Vite for sub-second startup times.
 
 ---
 
-## 📁 Project Structure
+## <img src="icons/archive-box.svg" width="22" height="22" align="center" /> Project Structure
 
 ```
 ui-hotel/
@@ -53,6 +53,7 @@ ui-hotel/
 │   ├── ui/                        # HUD panels, timer overlays, and interactive modals
 │   ├── main.js                    # Core event orchestration & lifecycle
 │   └── style.css                  # Modern cyber-aesthetic styling
+├── icons/                         # Tailwind Heroicons suite
 ├── index.html                     # Web entry point
 ├── vite.config.ts                 # Build & development configuration
 └── package.json                   # Scripts & dependencies
@@ -60,7 +61,7 @@ ui-hotel/
 
 ---
 
-## 🚀 Getting Started
+## <img src="icons/rocket-launch.svg" width="22" height="22" align="center" /> Getting Started
 
 ### Prerequisites
 
@@ -93,6 +94,6 @@ npm run build
 
 ---
 
-## 📄 License
+## <img src="icons/document-text.svg" width="22" height="22" align="center" /> License
 
 Proprietary © Medy Villarias. All rights reserved.
